@@ -1,0 +1,59 @@
+---
+title: "xcms tutorial"
+author: "Chuyao Wang"
+date: "`r Sys.Date()`"
+output: 
+  html_document: 
+    number_sections: true # automatic section numbering
+    toc: yes # table of content
+    toc_depth: 3
+    toc_float: true
+    smooth_scroll: true
+    toc_collapsed: true
+    fig_caption: yes
+    df_print: kable
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding = encoding, output_dir = "./html") })
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(xcms)
+library(MSnbase)
+library(msdata)
+library(magrittr)
+library(png)
+```
+
+# Mass spectrometry
+Mass spectrometry allows to measure abundances of charged molecules (ions) in a sample. Abundances are determined as ion counts for a specific mass-to-charge ratio m/z. The measured signal is represented as a spectrum: intensities along m/z.
+
+In such GC/LC-MS based untargeted metabolomics experiments the data is analyzed along the retention time dimension and chromatographic peaks (which are supposed to represent the signal from a ion species) are identified and quantified.
+
+# Data procrocessing workflow with xcms
+MSnbase: used for data handling (data import, access, visualization, centroiding)
+xcms: LC-MS data pre-processing (peak detection, alignment, and correspondence)
+
+## Data import annd representation
+Data from pooled human serum samples measured with a UHPLC system coupled with a Q-TOF MS instrument. The data is limited to m/z range 105-134 and rention time 0-260 seconds.
+
+```{r}
+## Define the file names. Find them from the package directory
+fls <- dir(system.file("sciex", 
+                       package = "msdata"), 
+           full.names = TRUE)
+
+## Define a data.frame with additional information on the files.
+# pd: a 2*4 dataframe with the 
+pd <- data.frame(file = basename(fls),
+                 injection_idx = c(1, 19),
+                 sample = c("POOL_1", "POOL_2"),
+                 group = "POOL")
+
+data <- readMSData(fls, # filenames to load
+                   pdata = new("NAnnotatedDataFrame", pd),
+                   mode = "onDisk" # Only load metadata into memory and leave the m/z ratio vs intensity peaks on disk
+                   ) 
+```
+

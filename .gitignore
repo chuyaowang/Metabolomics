@@ -1,0 +1,10 @@
+renv/cellar/
+renv/local/
+renv/lock/
+renv/library/
+renv/python/
+renv/staging/
+html/
+.Rproj.user/
+.Rhistory
+.RData
