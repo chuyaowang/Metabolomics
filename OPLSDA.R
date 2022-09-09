@@ -3,7 +3,7 @@ rm(list = ls())
 
 library(ropls)
 library(dplyr)
-filename <- "D:\\Files\\SH\\Metabo\\data\\sample.csv"
+filename <- file.choose() # CTRL + ENTER run this line
 sampledata <- read.csv(filename,
                        header=TRUE)
 

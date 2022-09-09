@@ -1,0 +1,91 @@
+---
+title: "Venn"
+author: "Chuyao Wang"
+date: "`r Sys.Date()`"
+output: 
+  html_document: 
+    number_sections: true # automatic section numbering
+    toc: yes # table of content
+    toc_depth: 3
+    toc_float: true
+    smooth_scroll: true
+    toc_collapsed: true
+    fig_caption: yes
+    df_print: kable
+params:
+    datadir: "./data/cellsample20220827"
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding = encoding, output_dir = "./html") })
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(ggplot2)
+library(openxlsx)
+library(VennDiagram)
+library(stringr)
+library(RColorBrewer)
+```
+
+## Import datasets
+
+> Need to use excel to add a blank worksheet to the xlsx file, or the function will not read!
+
+```{r}
+fls <- dir(params$datadir)
+fls <- paste(params$datadir,fls,sep="/") %>% as.data.frame
+
+samples <- apply(fls, MARGIN = 1, FUN = function (x) {
+  a <- read.xlsx(x,sheet=1,na.strings="")
+  return(a)
+})
+```
+
+## De-duplicate
+
+```{r}
+compoundNames <- lapply(samples, function(x){
+  names <- x$Name %>%
+    unique
+  return(names)
+})
+```
+
+## Venn Diagram
+
+```{r}
+myCol <- brewer.pal(dim(fls)[1], "Pastel2") # Color for plotting
+names.short <- str_split_fixed(unlist(fls),"/",n=4)[,4] # Extract file names
+
+futile.logger::flog.threshold(futile.logger::ERROR, name = "VennDiagramLogger")
+plt <- venn.diagram(
+        x = compoundNames,
+        category.names = names.short,
+        filename = NULL,
+        output=TRUE,
+        
+        # Image size
+        height = 405,
+        width = 720,
+        resolution = 600,
+        
+        # Circles
+        lwd = .5,
+        fill = myCol,
+
+        # Numbers
+        cex = .6,
+        fontface = "bold",
+        fontfamily = "sans",
+
+        # Set names
+        cat.cex = 0.6,
+        cat.fontface = "bold",
+        cat.default.pos = "outer",
+        cat.fontfamily = "sans")
+
+grid::grid.draw(plt)
+
+
+```

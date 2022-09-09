@@ -24,36 +24,249 @@ library(MSnbase)
 library(msdata)
 library(magrittr)
 library(png)
+library(dplyr)
+library(knitr)
 ```
 
 # Mass spectrometry
+
 Mass spectrometry allows to measure abundances of charged molecules (ions) in a sample. Abundances are determined as ion counts for a specific mass-to-charge ratio m/z. The measured signal is represented as a spectrum: intensities along m/z.
 
 In such GC/LC-MS based untargeted metabolomics experiments the data is analyzed along the retention time dimension and chromatographic peaks (which are supposed to represent the signal from a ion species) are identified and quantified.
 
-# Data procrocessing workflow with xcms
 MSnbase: used for data handling (data import, access, visualization, centroiding)
+
 xcms: LC-MS data pre-processing (peak detection, alignment, and correspondence)
 
-## Data import annd representation
-Data from pooled human serum samples measured with a UHPLC system coupled with a Q-TOF MS instrument. The data is limited to m/z range 105-134 and rention time 0-260 seconds.
+# Data import and representation
 
-```{r}
+Data from pooled human serum samples measured with a UHPLC system coupled with a Q-TOF MS instrument. The data is limited to m/z range 105-134 and retention time 0-260 seconds.
+
+> pd is a dataframe to input sample information, such as grouping
+>
+> When pd is added to the object, it should be convert to class "NAnnotatedDataFrame"
+>
+> varMetadata can be entered for each sample information.
+
+```{r loadData}
 ## Define the file names. Find them from the package directory
-fls <- dir(system.file("sciex", 
-                       package = "msdata"), 
-           full.names = TRUE)
+fls <- dir(system.file("sciex", package = "msdata"), full.names = TRUE)
 
-## Define a data.frame with additional information on the files.
-# pd: a 2*4 dataframe with the 
+# ## Define a data.frame with additional information on the files.
+# pd: a 2*4 dataframe with sample information
 pd <- data.frame(file = basename(fls),
                  injection_idx = c(1, 19),
                  sample = c("POOL_1", "POOL_2"),
                  group = "POOL")
 
 data <- readMSData(fls, # filenames to load
-                   pdata = new("NAnnotatedDataFrame", pd),
+                   # Stores data; stores sample info into @phenoData@data
+                   # More info about each variable: file, injection. sample etc. can be entered in varMetadata
+                   pdata = new("NAnnotatedDataFrame", pd), 
                    mode = "onDisk" # Only load metadata into memory and leave the m/z ratio vs intensity peaks on disk
                    ) 
+
 ```
 
+# Set up parallel processing
+
+> Set multicoreParam/SnowParam to empty unlimit the number of cores used, or enter a number for a specific amount
+
+```{r parallel}
+if (.Platform$OS.type == "unix") {
+    register(bpstart(MulticoreParam(8)))
+} else {
+    register(bpstart(SnowParam()))
+}
+```
+
+# Data object manipulation
+
+## Phenotype data
+
+> p stands for phenotype, which are all sorts of sample information. You can add more by editing the pd dataframe used when creating the object.
+>
+> pData can be used to get or set sample information (the pd matrix) directly.
+>
+> pData: phenoData \> data
+>
+> Specific sample information can be extracted directly with the \$ operator
+
+```{r pData}
+pData(data)
+
+data$injection_idx # from data directly, not pData
+```
+
+## Feature data
+
+> f stands for features, which are peaks in metabolomics data
+>
+> fData gets general information for each spectrum
+>
+> fData = featureData \> data
+
+```{r fData}
+kable(fData(data)[1:4,] %>% select(spectrum))
+```
+
+# Data access and visualization
+
+## Spectra overview
+
+> Information is organized by spectrum in xcms, which are snapshots of intensity vs. m/z diagrams in time.
+>
+> Functions such as `msLevel`, `centroided`, `polarity`, or `rtime` can be used to extract the respective information from all spectra.
+
+```{r msLevel}
+# MS 1 or 2
+head(msLevel(data))
+```
+
+```{r centroided}
+# Centroided or not, currently all not centroided
+head(centroided(data))
+```
+
+```{r polarity}
+# Polarity information; all positive for this example
+table(polarity(data))
+```
+
+```{r rtime}
+# Retention time
+# split by File origin (we had 2 samples)
+rts <- split(rtime(data),fromFile(data))
+```
+
+## Data filtering
+
+> The real spectra files (not the summary, the data) need to be loaded with the `spectra` function for processing, but they are huge.
+>
+> So we filter data to save computational resources and memory.
+>
+> Filter options: `filterFile`, `filterRt`, `filterMz` or `filterMsLevel`
+>
+> The filter functions can be chained into dplyr chains.
+>
+> This will retrieve a list containing the spectra fitting the criteria
+
+```{r filter}
+
+sps <- data %>%
+  filterRt(rt = c(180,181)) %>%
+  spectra
+```
+
+> `fromFile` tells which file does the spectrum come from
+>
+> sps contains 3 spectra from file 1 and 3 spectra from file 2
+
+```{r filterOverview}
+
+length(sps)
+
+vapply(sps, fromFile, integer(1)) # vapply requires specifying datatype; here integer(1)
+```
+
+## Plot spectrum
+
+```{r plotSpectrum}
+
+plot(sps[[6]]) # 3rd spectra from the 2nd file
+```
+
+## Get total ion chromatogram (TIC)
+
+> MS data is generally organized by spectra. i.e. an intensity vs. m/z ratio photo for each timepoint
+>
+> The `chromatogram` function extracts the TIC, which is a intensity vs. retention time plot for each file.
+>
+> This will create a chromatogram object that can be filtered with `rtime` and `intensity`
+
+```{r chromatogram-tic, fig.cap = "Total ion chromatogram.", fig.width = 10, fig.height = 5}
+#' Get chromatographic data (TIC) for an m/z slice
+chr <- chromatogram(data)
+chr
+
+#' Plot the tic
+plot(chr)
+```
+
+The chromatogram object is a data slice by sample matrix. Here we have a 1 data slice by 2 samples matrix.
+
+```{r}
+dim(chr)
+```
+
+Chromatograph for sample 1 can be ploted as such, similarly for sample 2.
+
+```{r}
+plot(chr[1,1])
+```
+
+```{r chromatogram-tic-intensity}
+ints <- intensity(chr[1, 1])
+head(ints) 
+```
+
+pData can still be used to get phenotype data (sample data)
+
+```{r chromatogram-pdata}
+#' Access the full phenotype data
+pData(chr)
+```
+
+There are different ways to aggregate intensity values across the mz range for the same retention time. The default is "sum", here we use "max", which gets only the max intensity m/z for each time point.
+
+It can also be used to generate extracted ion chromatogram (EIC), which is chromatogram for a specific m/z range.
+
+The area of under the peak corresponds to the amount of the ions present.
+
+```{r serine-xic, fig.cap = "Extracted ion chromatogram for the Serine [M+H]+ ion in both files."}
+#' Extract and plot the XIC for Serine
+data %>%
+    filterRt(rt = c(175, 189)) %>%
+    filterMz(mz = c(106.02, 106.07)) %>%
+    chromatogram(aggregationFun = "max") %>%
+    plot() 
+```
+
+# Centroiding of profile MS data
+
+Profile mode of MS data has intensities for all m/z values. To reduce file size and help peak detection, centroiding should be performed.
+
+The `MSnbase` package provides all tools to perform this centroiding (and data smoothing) in R: `pickPeaks` and `smooth`.
+
+The top graph is the intensity vs. retention time chromatograph for serine; the bottom is m/z ratio vs. retention time, and a 3rd dimension of intensity is represented by colors. From the graph you can see that for each time point, peaks for a range of m/z ratios are detected, but the serine peak has the highest intensity between 106.02 and 106.07.
+
+Each column of data on the bottom graph represents the data recorded in the spectrum for that timepoint.
+
+```{r serine-profile-mode-data, fig.cap = "Profile data for Serine.", fig.width = 10, fig.height = 5, fig.pos = "h!"}
+#' Filter the MS data to the signal from the Serine ion and plot it using
+#' type = "XIC"
+data %>%
+    filterRt(rt = c(175, 189)) %>%
+    filterMz(mz = c(106.02, 106.07)) %>%
+    plot(type = "XIC") 
+```
+
+The data is smoothed with the SavitzkyGolay filter. `halfWindowSize` should be less than FWHM (full width at half maximum) of the peaks. Smoothing normally applies to the m/z dimension. Additionally, `combineSpectraMovingWindow` can be used to smooth both the retention time and m/z dimensions - essentially a square filter used in computer vision.
+
+The result is a `MSnExp` object that is saved to the memory. In real use cases this will blow up the memory. So it is better to apply smoothing to each experiment file. Then export the result separately as mzML files using `writeMSData`.
+
+Then the data is centroided by picking the max point in each spectrum. There are two other methods available: `refineMz = "descendPeak"` and `refineMz = "kNeighbors"`. Both of them compute the centroid with an intensity-weighted average of other m
+
+```{r centroiding, fig.cap = "Centroided data for Serine.", fig.width = 10, fig.height = 5, fig.pos = "h!"}
+#' Smooth the signal, then do a simple peak picking.
+data_cent <- data %>%
+    smooth(method = "SavitzkyGolay", halfWindowSize = 4) %>%
+    combineSpectraMovingWindow() %>%
+    pickPeaks(refineMz = "kNeighbors")
+
+#' Plot the centroided data for Serine
+data_cent %>%
+    filterRt(rt = c(175, 189)) %>%
+    filterMz(mz = c(106.02, 106.07)) %>%
+    plot(type = "XIC") 
+```
