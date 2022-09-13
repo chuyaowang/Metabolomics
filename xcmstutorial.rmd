@@ -74,7 +74,7 @@ data <- readMSData(fls, # filenames to load
 
 ```{r parallel}
 if (.Platform$OS.type == "unix") {
-    register(bpstart(MulticoreParam(8)))
+    register(bpstart(MulticoreParam(6)))
 } else {
     register(bpstart(SnowParam()))
 }
@@ -255,18 +255,339 @@ The data is smoothed with the SavitzkyGolay filter. `halfWindowSize` should be l
 
 The result is a `MSnExp` object that is saved to the memory. In real use cases this will blow up the memory. So it is better to apply smoothing to each experiment file. Then export the result separately as mzML files using `writeMSData`.
 
-Then the data is centroided by picking the max point in each spectrum. There are two other methods available: `refineMz = "descendPeak"` and `refineMz = "kNeighbors"`. Both of them compute the centroid with an intensity-weighted average of other m
+Then the data is centroided by picking the max point in each spectrum. There are two other methods available: `refineMz = "descendPeak"` and `refineMz = "kNeighbors"`. Both of them compute the centroid with an intensity-weighted average of other m/z ratios in the same spectrum. KN uses 2 neighbors left and right to compute the average by default, while DP uses all the neighbors above 33% of the centroid's intensity by default before the next peak appears on left or right.
 
 ```{r centroiding, fig.cap = "Centroided data for Serine.", fig.width = 10, fig.height = 5, fig.pos = "h!"}
 #' Smooth the signal, then do a simple peak picking.
 data_cent <- data %>%
     smooth(method = "SavitzkyGolay", halfWindowSize = 4) %>%
     combineSpectraMovingWindow() %>%
-    pickPeaks(refineMz = "kNeighbors")
+    pickPeaks(refineMz = "descendPeak")
 
 #' Plot the centroided data for Serine
 data_cent %>%
     filterRt(rt = c(175, 189)) %>%
     filterMz(mz = c(106.02, 106.07)) %>%
     plot(type = "XIC") 
+```
+
+However, the centroided data is not save on disk yet. Now we save them and read them in again for further manipulation.
+
+```{r export-centroided-prepare, echo = FALSE, results = "hide"}
+#' Silently removing exported mzML files if they do already exist.
+lapply(basename(fileNames(data)), function (z) {
+    if (file.exists(z))
+        file.remove(z)
+}) 
+```
+
+```{r export-centroided}
+#' Write the centroided data to files with the same names in the current
+#' directory
+fls_new <- basename(fileNames(data))
+writeMSData(data_cent, file = fls_new)
+```
+
+# Pre-processing of MS data
+
+Pre-processing of data quantifies the signal from ion species and outputs the sample x peak matrix for downstream analysis. There are 3 steps:
+
+1.  Peak detection
+
+2.  Peak alignment (retention time correction)
+
+3.  Correspondence (peak grouping)
+
+```{r}
+#' Read the centroided data.
+fls_new <- c("20171016_POOL_POS_1_105-134.mzML", "20171016_POOL_POS_3_105-134.mzML")
+data_cent <- readMSData(fls_new, pdata = new("NAnnotatedDataFrame", pd),
+                        mode = "onDisk") 
+```
+
+## Peak Detection
+
+Peak detection is performed with the `findChromPeaks` function on a chromatogram object. It has three methods:
+
+1.  `MatchedFilterParam`: Performs peak detection with the vanilla paper's method
+
+2.  `CentWaveParam`: detect peaks with continuous wavelet transformation. Two parameters `peakwidth` and `ppm` are particularly important: `peakwidth` defines the min and max width of a peak in seconds. This can be determined from internal standards or known compounds in the sample. `ppm` defines the max allowed m/z deviation in consecutive scans in ppm.
+
+3.  `MassifquantParam`: a Kalman filter-based peak detection
+
+```{r centWave-default, fig.cap = "XIC for Serine", results = "hide"}
+#' Get the XIC for serine in all files
+srn_chr <- chromatogram(data_cent, rt = c(164, 200),
+                        mz = c(106.03, 106.06),
+                        aggregationFun = "max")
+#' Plot the data
+par(mfrow = c(1, 1), mar = c(4, 4.5, 1, 1))
+plot(srn_chr)
+
+#' Get default centWave parameters
+cwp <- CentWaveParam()
+
+#' "dry-run" peak detection on the XIC.
+res <- findChromPeaks(srn_chr, param = cwp)
+chromPeaks(res)
+```
+
+```{r centWave-default-parameters}
+cwp 
+```
+
+```{r centWave-adapted, fig.cap = "XIC for Serine with detected chromatographic peak", results = "hide"}
+cwp <- CentWaveParam(peakwidth = c(2, 10), integrate = 2)
+
+srn_chr <- findChromPeaks(srn_chr, param = cwp)
+
+#' Plot the data and higlight identified peak area
+plot(srn_chr)
+```
+
+```{r chromPeaks-chromatogram}
+chromPeaks(srn_chr)
+```
+
+```{r Serine-mz-scattering-plot}
+#' Restrict the data to signal from Serine
+srn <- data_cent %>%
+    filterRt(rt = c(179, 186)) %>%
+    filterMz(mz = c(106.04, 106.06))
+
+#' Plot the data
+plot(srn, type = "XIC") 
+```
+
+```{r sample-highest-signal}
+#' Extract intensities and split them by file. This will return
+#' a list of lists.
+ints_per_file <- split(intensity(srn), fromFile(srn))
+
+#' For each file, sum up the intensities.
+ints_sum <- lapply(ints_per_file, function(x) sum(unlist(x)))
+ints_sum
+```
+
+```{r define-ppm}
+#' Extract the Serine data for one file as a data.frame
+srn_df <- as(filterFile(srn, file = which.max(ints_sum)), "data.frame")
+
+#' The difference between m/z values from consecutive scans expressed
+#' in ppm
+diff(srn_df$mz) * 1e6 / mean(srn_df$mz) 
+```
+
+```{r findPeaks-centWave}
+#' Perform peak detection
+cwp <- CentWaveParam(peakwidth = c(2, 10), ppm = 30, integrate = 2)
+data_cent <- findChromPeaks(data_cent, param = cwp) 
+```
+
+```{r xcmsnexp}
+#' Access the peak detection results from a specific m/z - rt area
+chromPeaks(data_cent, mz = c(106, 107), rt = c(150, 190))
+```
+
+```{r chrom-after}
+eic_serine <- chromatogram(data_cent, mz = c(106.04, 106.06),
+                           rt = c(179, 186))
+chromPeaks(eic_serine)
+```
+
+```{r plot-after}
+plot(eic_serine)
+```
+
+```{r xic-after}
+srn <- data_cent %>%
+    filterRt(rt = c(175, 188)) %>%
+    filterMz(mz = c(106.04, 106.06))
+
+plot(srn, type = "XIC")
+```
+
+```{r}
+mpp <- MergeNeighboringPeaksParam(expandRt = 4)
+data_cent_pp <- refineChromPeaks(data_cent, param = mpp)
+```
+
+```{r}
+chromPeakData(data_cent_pp)
+```
+
+```{r merged-peak, fig.width = 12, fig.height = 6, fig.cap = "Result from the peak refinement. Left: peaks before merging, right after merging."}
+mzr <- c(124.084, 124.088)
+rtr <- c(150, 170)
+chr_1 <- chromatogram(filterFile(data_cent, 2), mz = mzr, rt = rtr)
+chr_2 <- chromatogram(filterFile(data_cent_pp, 2), mz = mzr, rt = rtr)
+par(mfrow = c(1, 2))
+plot(chr_1)
+plot(chr_2)
+```
+
+```{r}
+data_cent <- data_cent_pp
+```
+
+```{r plotChromPeaks, fig.cap = "Location of the identified chromatographic peaks in the m/z - rt space.", fig.height = 7, fig.width = 12}
+par(mfrow = c(1, 2))
+plotChromPeaks(data_cent, 1)
+plotChromPeaks(data_cent, 2) 
+```
+
+## Peak Alignment
+
+```{r alignment-bpc-raw, fig.cap = "BPC of all files.", fig.width = 8, fig.height = 4}
+#' Extract base peak chromatograms
+bpc_raw <- chromatogram(data_cent, aggregationFun = "max")
+plot(bpc_raw, peakType = "none")
+```
+
+```{r alignment-correspondence}
+#' Define the settings for the initial peak grouping - details for
+#' choices in the next section.
+pdp <- PeakDensityParam(sampleGroups = data_cent$group, bw = 1.8,
+                        minFraction = 1, binSize = 0.02)
+data_cent <- groupChromPeaks(data_cent, pdp)
+
+#' Define settings for the alignment
+pgp <- PeakGroupsParam(minFraction = 1, span = 0.6)
+data_cent <- adjustRtime(data_cent, param = pgp) 
+```
+
+```{r alignment-result, fig.width = 8, fig.height = 4, fig.cap = "Alignment results. Shown is the difference between raw and adjusted retention times and the hook peaks that were used for the alignment (shown as points)."}
+#' Plot the difference between raw and adjusted retention times
+plotAdjustedRtime(data_cent) 
+```
+
+```{r bpc-raw-adjusted, fig.cap = "BPC before (top) and after (bottom) alignment.", fig.width = 10, fig.height = 8}
+par(mfrow = c(2, 1))
+#' Plot the raw base peak chromatogram
+plot(bpc_raw, peakType = "none")
+#' Plot the BPC after alignment
+plot(chromatogram(data_cent, aggregationFun = "max", include = "none"))
+```
+
+```{r serine-xic-adjusted, fig.cap = "XIC for Serine before (left) and after (right) alignment", fig.width = 10, fig.height = 4}
+#' Use adjustedRtime parameter to access raw/adjusted retention times
+par(mfrow = c(1, 2), mar = c(4, 4.5, 1, 0.5))
+plot(chromatogram(data_cent, mz = c(106.04, 106.06),
+                  rt = c(179, 186), adjustedRtime = FALSE))
+plot(chromatogram(data_cent, mz = c(106.04, 106.06),
+                  rt = c(179, 186))) 
+```
+
+## Correspondence
+
+```{r correspondence-example, fig.cap = "BPC for a m/z slice and defined features within this slice based on default settings.", fig.width = 10, fig.height = 7}
+#' Get default parameters for the grouping
+pdp <- PeakDensityParam(sampleGroups = data_cent$group)
+
+#' Extract a BPC for the m/z slice containing serine
+bpc_serine <- chromatogram(data_cent, mz = c(106.04, 106.06),
+                           aggregationFun = "max")
+
+#' Dry-run correspondence and show the results.
+plotChromPeakDensity(bpc_serine, param = pdp)
+```
+
+```{r correspondence-bw, fig.cap = "Correspondence analysis with default settings on an m/z slice containing signal from multiple ions.", fig.width = 10, fig.height = 7}
+#' Plot the chromatogram for an m/z slice containing Betaine and Valine
+mzr <- 118.08625 + c(-0.01, 0.01)
+chr <- chromatogram(data_cent, mz = mzr, aggregationFun = "max")
+
+#' Correspondence in that slice using default settings
+pdp <- PeakDensityParam(sampleGroups = data_cent$group)
+plotChromPeakDensity(chr, param = pdp)
+```
+
+```{r correspondence-bw-fix, fig.cap = "Correspondence analysis with reduced bw setting on a m/z slice containing signal from multiple ions.", fig.width = 10, fig.height = 7}
+#' Reducing the bandwidth
+pdp <- PeakDensityParam(sampleGroups = data_cent$group, bw = 1.8)
+plotChromPeakDensity(chr, param = pdp)
+```
+
+```{r correspondence-analysis}
+pdp <- PeakDensityParam(sampleGroups = data_cent$group, bw = 1.8,
+                        minFraction = 0.4, binSize = 0.02)
+
+#' Perform the correspondence analysis
+data_cent <- groupChromPeaks(data_cent, param = pdp) 
+```
+
+```{r correspondence-evaluate, fig.cap = "Result of correspondence on a slice containing the isomers Leucine and Isoleucine.", fig.width = 10, fig.heigt = 7}
+#' Plot the results for an m/z slice containing Leucine and Isoleucine
+mzr <- 132.10191 + c(-0.01, 0.01)
+chr <- chromatogram(data_cent, mz = mzr, aggregationFun = "max")
+plotChromPeakDensity(chr, simulate = FALSE)
+```
+
+```{r correspondence-featureDefinitions}
+#' Definition of the features
+featureDefinitions(data_cent) 
+```
+
+```{r correspondence-featureSummary}
+#' Per-feature summary.
+head(featureSummary(data_cent)) 
+```
+
+```{r correspondence-featureValue}
+#' feature intensity matrix
+fmat <- featureValues(data_cent, value = "into", method = "maxint")
+head(fmat)
+```
+
+```{r fillChromPeaks}
+#' Number of missing values
+sum(is.na(fmat))
+
+data_cent <- fillChromPeaks(data_cent, param = ChromPeakAreaParam())
+
+#' How many missing values after
+sum(is.na(featureValues(data_cent)))
+
+fmat_fld <- featureValues(data_cent, value = "into", method = "maxint")
+head(fmat_fld) 
+```
+
+```{r}
+library(SummarizedExperiment)
+res <- quantify(data_cent, filled = FALSE, method = "sum", value = "into")
+```
+
+```{r}
+colData(res)
+```
+
+```{r}
+colData(res)
+```
+
+```{r}
+head(assay(res, "raw"))
+```
+
+```{r}
+assays(res)$raw_filled <- featureValues(data_cent, method = "sum",
+                                        value = "into", filled = TRUE)
+```
+
+```{r}
+assayNames(res)
+```
+
+```{r correspondence-result-object}
+#' Overview of the performed processings
+processHistory(data_cent)
+```
+
+```{r correspondence-history}
+#' Access the parameter class for a processing step
+processParam(processHistory(data_cent)[[1]])
+```
+
+```{r}
+metadata(res)
 ```

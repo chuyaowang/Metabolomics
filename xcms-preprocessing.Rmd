@@ -478,7 +478,7 @@ metabolites.
 Chromatographic peak detection aims to identify peaks along the
 retention time axis that represent the signal from individual compounds'
 ions. This can be performed with the `findChromPeaks` function and one
-of the available algorithms that can be configures with the respective
+of the available algorithms that can be configured with the respective
 parameter object: passing a `MatchedFilterParam` to `findChromPeaks`
 performs peak detection as described in the original xcms article
 [@Smith:2006ic]. With `CentWaveParam` a continuous wavelet
