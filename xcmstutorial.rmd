@@ -193,7 +193,7 @@ chr
 plot(chr)
 ```
 
-The chromatogram object is a data slice by sample matrix. Here we have a 1 data slice by 2 samples matrix.
+The chromatogram object is a data slice x sample matrix. Here we have a 1 data slice by 2 samples matrix.
 
 ```{r}
 dim(chr)
@@ -258,7 +258,7 @@ The result is a `MSnExp` object that is saved to the memory. In real use cases t
 Then the data is centroided by picking the max point in each spectrum. There are two other methods available: `refineMz = "descendPeak"` and `refineMz = "kNeighbors"`. Both of them compute the centroid with an intensity-weighted average of other m/z ratios in the same spectrum. KN uses 2 neighbors left and right to compute the average by default, while DP uses all the neighbors above 33% of the centroid's intensity by default before the next peak appears on left or right.
 
 ```{r centroiding, fig.cap = "Centroided data for Serine.", fig.width = 10, fig.height = 5, fig.pos = "h!"}
-#' Smooth the signal, then do a simple peak picking.
+#' Smooth the signal, then do centroiding.
 data_cent <- data %>%
     smooth(method = "SavitzkyGolay", halfWindowSize = 4) %>%
     combineSpectraMovingWindow() %>%
@@ -315,11 +315,14 @@ Peak detection is performed with the `findChromPeaks` function on a chromatogram
 
 3.  `MassifquantParam`: a Kalman filter-based peak detection
 
+### Peak width optimization
+
 ```{r centWave-default, fig.cap = "XIC for Serine", results = "hide"}
 #' Get the XIC for serine in all files
-srn_chr <- chromatogram(data_cent, rt = c(164, 200),
-                        mz = c(106.03, 106.06),
-                        aggregationFun = "max")
+srn_chr <- chromatogram(data_cent, 
+                        rt = c(164, 200), # Retention time range
+                        mz = c(106.03, 106.06), # mz range
+                        aggregationFun = "max") # get the max
 #' Plot the data
 par(mfrow = c(1, 1), mar = c(4, 4.5, 1, 1))
 plot(srn_chr)
@@ -332,12 +335,20 @@ res <- findChromPeaks(srn_chr, param = cwp)
 chromPeaks(res)
 ```
 
+No peaks found, but this makes sense if we look at the parameters of cwp:
+
 ```{r centWave-default-parameters}
 cwp 
 ```
 
+Since the peaks for serine are about 4 seconds wide, we adapt the parameters below.
+
+`integrate` defines whether peak limit is found on filtered data (1) or real data (2). Using filtered data is more robust, but less exact. Using real data is more accurate, but prone to noise.
+
+There are two peaks because there are two data files.
+
 ```{r centWave-adapted, fig.cap = "XIC for Serine with detected chromatographic peak", results = "hide"}
-cwp <- CentWaveParam(peakwidth = c(2, 10), integrate = 2)
+cwp <- CentWaveParam(peakwidth = c(2, 5), integrate = 2)
 
 srn_chr <- findChromPeaks(srn_chr, param = cwp)
 
@@ -345,9 +356,35 @@ srn_chr <- findChromPeaks(srn_chr, param = cwp)
 plot(srn_chr)
 ```
 
+Identified peaks can be viewed with `chromPeaks` function.
+
+`rt`, `rtmin`, `rtmax`: retention time
+
+`into`: integrated peak area
+
+`intb`: base-line corrected integrated peak area
+
+`maxo`: maximum signal
+
+`sn`: s/n ratio
+
 ```{r chromPeaks-chromatogram}
 chromPeaks(srn_chr)
 ```
+
+A matrix to annotate the identified peaks can be extracted as well.
+
+```{r}
+chromPeakData(srn_chr)
+```
+
+### Ppm optimization
+
+The ppm defines how much variation in ppm is allowed for a peak to be considered valid. The higher the intensity, the smaller the variation should be. This parameter should also be tuned.
+
+First get the centroided serine data.
+
+Plot the XIC for srn:
 
 ```{r Serine-mz-scattering-plot}
 #' Restrict the data to signal from Serine
@@ -359,6 +396,10 @@ srn <- data_cent %>%
 plot(srn, type = "XIC") 
 ```
 
+I did some fancy centroiding so the variation does not exactly match the description above, but in general the variation is less when intensity is high.
+
+Next we find the sample (we have 2) with the highest intensity overall in the serine range. This will make a stricter requirement for ppm later on.
+
 ```{r sample-highest-signal}
 #' Extract intensities and split them by file. This will return
 #' a list of lists.
@@ -369,25 +410,47 @@ ints_sum <- lapply(ints_per_file, function(x) sum(unlist(x)))
 ints_sum
 ```
 
+In order to compute variations, we need the difference in intensity between consecutive scans in time.
+
+`filterFile` oprates on a MSnExp object to get the one with the highest total intensity. `as` converts it to a data.frame.
+
+`diff` is a function that computes lagged difference. i.e. next number subtracts the previous, with more options.
+
 ```{r define-ppm}
 #' Extract the Serine data for one file as a data.frame
 srn_df <- as(filterFile(srn, file = which.max(ints_sum)), "data.frame")
 
 #' The difference between m/z values from consecutive scans expressed
 #' in ppm
-diff(srn_df$mz) * 1e6 / mean(srn_df$mz) 
+(diff(srn_df$mz) * 1e6 / mean(srn_df$mz)) %>% summary
 ```
+
+So we are setting the ppm limit from 0 to 10 based on serine. Ideally this should be tested for a few more compounds to get the optimal ppm range. The result is a XCMSnExp object which inherits from the MSnExp object and also contains all pre-processing results
 
 ```{r findPeaks-centWave}
 #' Perform peak detection
-cwp <- CentWaveParam(peakwidth = c(2, 10), ppm = 30, integrate = 2)
+cwp <- CentWaveParam(peakwidth = c(2, 5), ppm = 30, integrate = 1)
 data_cent <- findChromPeaks(data_cent, param = cwp) 
 ```
+
+The `chromPeaks` function can be used to access detected peaks with mz and rt as filtering criteria.
+
+For each identified peak the values of its apex is reported (`mz`, `rt`, and their ranges).
+
+`into`: integrated signal
+
+`maxo`: max signal
+
+`sn`: s/n ratio
+
+`sample`: index
 
 ```{r xcmsnexp}
 #' Access the peak detection results from a specific m/z - rt area
 chromPeaks(data_cent, mz = c(106, 107), rt = c(150, 190))
 ```
+
+Extracted ion chromatogram will also contain detected peaks after peak detection. Here the EIC of serine:
 
 ```{r chrom-after}
 eic_serine <- chromatogram(data_cent, mz = c(106.04, 106.06),
@@ -395,9 +458,13 @@ eic_serine <- chromatogram(data_cent, mz = c(106.04, 106.06),
 chromPeaks(eic_serine)
 ```
 
+Plot the chromatogram
+
 ```{r plot-after}
 plot(eic_serine)
 ```
+
+An XIC plot after peak detection also shows the rt/mz space from which the peak signal is integrated.
 
 ```{r xic-after}
 srn <- data_cent %>%
@@ -407,10 +474,22 @@ srn <- data_cent %>%
 plot(srn, type = "XIC")
 ```
 
-```{r}
+### Peak post-processing
+
+Two issues need to be handled: overlapping peaks and artificially split peaks. This is done with the `refineChromPeaks` function.
+
+For the former, a `cleanPeaksParam` can be passed to the function. For the latter, a `MergeNeighboringPeaksParam` object can be manipulated.
+
+Merging overlap peaks: if the peaks overlap for 4 seconds and the signal between them is lower than 75% of the smaller peak's max intensity.
+
+Weird parallel computing issues sometimes happen.
+
+```{r, results="hide"}
 mpp <- MergeNeighboringPeaksParam(expandRt = 4)
 data_cent_pp <- refineChromPeaks(data_cent, param = mpp)
 ```
+
+Whether a peak is merged can be found via the `chromPeakData` function.
 
 ```{r}
 chromPeakData(data_cent_pp)
