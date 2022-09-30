@@ -236,7 +236,7 @@ data %>%
 
 Profile mode of MS data has intensities for all m/z values. To reduce file size and help peak detection, centroiding should be performed.
 
-The `MSnbase` package provides all tools to perform this centroiding (and data smoothing) in R: `pickPeaks` and `smooth`.
+The `MSnbase` package provides all tools to perform centroiding (and data smoothing) in R: `pickPeaks` and `smooth`.
 
 The top graph is the intensity vs. retention time chromatograph for serine; the bottom is m/z ratio vs. retention time, and a 3rd dimension of intensity is represented by colors. From the graph you can see that for each time point, peaks for a range of m/z ratios are detected, but the serine peak has the highest intensity between 106.02 and 106.07.
 
@@ -412,7 +412,7 @@ ints_sum
 
 In order to compute variations, we need the difference in intensity between consecutive scans in time.
 
-`filterFile` oprates on a MSnExp object to get the one with the highest total intensity. `as` converts it to a data.frame.
+`filterFile` operates on a MSnExp object to get the one with the highest total intensity. `as` converts it to a data.frame.
 
 `diff` is a function that computes lagged difference. i.e. next number subtracts the previous, with more options.
 
