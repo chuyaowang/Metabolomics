@@ -1,0 +1,5 @@
+intensity = 0: centroiding can remove some intensities; taking only the max can omit some intensities; or the intensity is just not there.
+
+mz = 0: had to do with wrongfully summing mz values and taking the mean. Having empty (not found) mz values can cause mz to be 0
+
+wrong mean: as an example, sometimes a mz value can have 4 intensities in 5 spectra, and the mean should be calculated by dividing by 4 rather than 5.
