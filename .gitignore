@@ -9,3 +9,4 @@ html/
 .Rhistory
 .RData
 data/
+output/
