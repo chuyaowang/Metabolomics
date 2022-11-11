@@ -5,6 +5,7 @@ library(stringr)
 library(gtools)
 library(MSnbase)
 library(purrr)
+library(future.apply)
 
 data_cent <- function(file) {
   data <- readMSData(file,
@@ -77,7 +78,7 @@ remove_zeros <- function(x) {
   return(x)
 }
 
-get_abundance <- function(datadir, ppm, rt_range, C, N, H, O, pol, parallel = FALSE, meanIntensity = TRUE, centroidData = TRUE, unlabeled = NA) {
+get_abundance <- function(datadir, ppm, rt_range, C, N, H, O, pol, parallel = FALSE, multiplier = 0.5, centroidData = TRUE, unlabeled = NA, backgroundRange = 1) {
   # Set up parallel processing
   if (parallel == FALSE) {
     register(SerialParam())
@@ -94,7 +95,7 @@ get_abundance <- function(datadir, ppm, rt_range, C, N, H, O, pol, parallel = FA
                     all.files = TRUE, full.names = TRUE,
                     recursive = FALSE, ignore.case = FALSE,
                     include.dirs = FALSE, no.. = TRUE)  %>%
-    mixedsort(decreasing = F)
+    mixedsort(decreasing = T)
   
   # Centroid data if not already centroided
   if (centroidData == TRUE) { # If using centroided data
@@ -117,12 +118,11 @@ get_abundance <- function(datadir, ppm, rt_range, C, N, H, O, pol, parallel = FA
     fls <- fls[!str_detect(fls,"cent")] # get only uncentroided file names
   }
 
-  # Read data
-  data <- readMSData(fls, mode = "onDisk") %>%
-    filterMsLevel(msLevel. = 1)
+  # Read data -----
+  data <- readMSData(fls, mode = "onDisk")
   print("Data reading complete")
   
-  # Get mz values
+  # Get mz values -----
   mzs <- get_mz_cn(C=C,H=H,N=N,O=O,pol=pol) # mz ratio
   label <- sapply(colnames(mzs), function(x) {
     sapply(rownames(mzs), function(y) {
@@ -132,27 +132,27 @@ get_abundance <- function(datadir, ppm, rt_range, C, N, H, O, pol, parallel = FA
   mzs_vec <- as.vector(as.matrix(mzs))
   print(paste((C+1)*(N+1),"mz values computed"))
   
-  # Get chromatogram
+  # Get chromatogram -----
+  rt_range <- 60*rt_range
   chr <- data %>%
     filterMz(mz = get_ppm_range(x=max(mzs),ppm=ppm)) %>%
-    filterRt(rt = 60*rt_range) %>%
+    filterRt(rt = rt_range) %>%
     chromatogram(aggregationFun = "sum", missing = 0)
   print("Chromatogram reading complete")
-  
-  print("Start getting intensities")
-  # Get intensities
-  mz_int <- lapply(seq_along(fls), function(f) {
+
+  # Get intensities -----
+  mz_int <- future_lapply(seq_along(fls), function(f) {
     print(paste("Processing File",f))
     res <- list()
     
-    # Get acquisition number(s)
-    if (meanIntensity == TRUE) {
+    # Get acquisition number(s) -----
+    if (as.integer(multiplier) != 1) {
       ints <- intensity(chr[1,f])
-      acNum <- ints[ints >= (0.5*max(ints))] %>%
+      acNum <- ints[ints >= (multiplier*max(ints))] %>%
         names %>%
         str_extract("(?<=S)[:digit:]+") %>%
         as.integer
-    } else if (meanIntensity == FALSE) {
+    } else if (as.integer(multiplier) == 1) {
       acNum <- intensity(chr[1,f]) %>%
         which.max %>%
         names %>%
@@ -160,23 +160,74 @@ get_abundance <- function(datadir, ppm, rt_range, C, N, H, O, pol, parallel = FA
         as.integer
     }
     
-    # Getting spectrum
-    sp <- data %>%
+    # Getting analyte spectrum -----
+    data_ana <- data %>%
       filterFile(f) %>%
       filterAcquisitionNum(n = acNum)
+    
+    # Getting control spectrum -----
+    ctl_range <- data %>%
+      filterFile(f) %>%
+      fData %>%
+      select(retentionTime) %>%
+      unlist
+    ctl_range <- c(min(ctl_range),max(ctl_range))
+    ctl_range1 <- c(max(ctl_range[1],rt_range[1]-backgroundRange*60),rt_range[1])
+    ctl_range2 <- c(rt_range[2],min(ctl_range[2],rt_range[2]+backgroundRange*60))
+    
+    sprintf("Ranges for background substraction: %.3f to %.3f seconds and %.3f to %.3f seconds",ctl_range1[1],ctl_range1[2],ctl_range2[1],ctl_range2[2])
+    
+    data_ctl1 <- data %>%
+      filterFile(f) %>%
+      filterRt(rt = ctl_range1)
+    data_ctl2 <- data %>%
+      filterFile(f) %>%
+      filterRt(rt = ctl_range2)
     
     for (i in seq_along(mzs_vec)) {
       x <- mzs_vec[i]
       
       # Matching mzs
-      matched <- sp %>%
+      matched <- data_ana %>%
         filterMz(mz = get_ppm_range(x = x,ppm = ppm))
       
       # Obtain mz intensity pair
-      vals <- c(mz(matched) %>% unlist %>% remove_zeros %>% mean,
-                intensity(matched) %>% sapply(sum) %>% remove_zeros %>% mean)
+      vals <- c(mz(matched) %>% unlist %>% remove_zeros %>% median,
+                intensity(matched) %>% sapply(sum) %>% remove_zeros %>% median)
       
-      # Output result
+      # Background subtraction -----
+      data_ctl1_med <- data_ctl1 %>%
+        filterMz(mz = get_ppm_range(x=x,ppm=ppm)) %>%
+        intensity %>%
+        sapply(sum) %>%
+        remove_zeros %>%
+        median
+      # data_ctl2_med <- data_ctl2 %>%
+      #   filterMz(mz = get_ppm_range(x=x,ppm=ppm)) %>%
+      #   intensity %>%
+      #   sapply(sum) %>%
+      #   remove_zeros %>%
+      #   median
+      data_ctl2_med <- data_ctl1_med
+      
+      if (is.na(data_ctl1_med)) {
+        med <- data_ctl2_med
+      } else if (is.na(data_ctl2_med)) {
+        med <- data_ctl1_med
+      } else {
+        med <- median(c(data_ctl1_med,data_ctl2_med))
+      }
+      
+      if (is.na(med)) {med <- 0}
+      
+      vals[2] <- vals[2] - med
+      if (is.na(vals[2])) {
+        vals[2] <- 0
+      } else if (vals[2]<0) {
+        vals[2] <- 0
+      }
+      
+      # Output result -----
       if (is.na(sum(vals))) {
         res[[i]] <- c(x,0)
       } else {
@@ -288,21 +339,26 @@ retrieve_ints <- function(out) {
 }
 
 ## Edit parameters -----
+plan(multisession, workers = 4)
+
 out_arg_max_cent <- get_abundance(
   datadir = "./rdata/20221108/", # Edit data directory
   ppm = 5,
-  rt_range = c(0.4,2),
+  rt_range = c(.4,2.5), # Retention time range for the ENTIRE PEAK
   C = 6,
   H = 14,
   N = 4,
   O = 2,
   pol = 1, # -1 for neg mode
   unlabeled = "C", # If "C" or "N" is unlabeled, or NA if C and N are both labeled
-  centroidData = TRUE, # use centroided data or not; using centroided data takes the max intensity in a mz dimension cluster; using original data takes the sum intensity in a mz dimension cluster
+  centroidData = TRUE, # use centroided data or not; using centroided data takes the max intensity in a mz dimension peak; using original data takes the sum intensity in a mz dimension peak
   parallel = FALSE, # Use biocparallel or not; not recommended
-  meanIntensity = FALSE # compute intensities from max spectra or mean of half-width spectrum
-)
+  multiplier = 0.5, # Width around the max spectra to look for intensities; 1 is the max spectrum, 0.5 is half peak intensities spectrum, etc.
+  backgroundRange = 1 # Minutes before and after the peak to be used for background subtraction
+  )
 
+# gly: 0.5 to 1.5
+# urea: 0.8 to 2
 # ints <- retrieve_ints(out = out_mean_cent)
 ## Utils -----
 # calc <- get_mz_cn( # Compute mz values
@@ -317,22 +373,23 @@ out_arg_max_cent <- get_abundance(
 # write.csv(out_stable,"./rdata/20221028/outputganansuan8zhen.csv") # Write the output to a csv file
 
 ## One-timers -----
-# out <- list.dirs("rdata/20221031/conc")[-1] %>%
+# out_conc <- list.dirs("rdata/20221031/conc")[-1] %>%
 #   mixedsort(decreasing = F) %>%
 #   lapply(.,function(x){
 #     a <- get_abundance(
-#       datadir = x,
+#       datadir = x, # Edit data directory
 #       ppm = 5,
-#       rt_range = c(.5,1.5),
+#       rt_range = c(.5,1.5), # Retention time range for the ENTIRE PEAK
 #       C = 2,
 #       H = 5,
 #       N = 1,
 #       O = 2,
 #       pol = 1, # -1 for neg mode
 #       unlabeled = NA, # If "C" or "N" is unlabeled, or NA if C and N are both labeled
-#       centroidData = TRUE, # use centroided data or not; using centroided data takes the max intensity in a mz dimension cluster; using original data takes the sum intensity in a mz dimension cluster
+#       centroidData = TRUE, # use centroided data or not; using centroided data takes the max intensity in a mz dimension peak; using original data takes the sum intensity in a mz dimension peak
 #       parallel = FALSE, # Use biocparallel or not; not recommended
-#       meanIntensity = TRUE # compute intensities from max spectra or mean of half-width spectrum
+#       multiplier = .5, # Width around the max spectra to look for intensities; 1 is the max spectrum, 0.5 is half peak intensities spectrum, etc.
+#       backgroundRange = 2 # Minutes before and after the peak to be used for background subtraction
 #     )
 #     a <- a %>%
 #       retrieve_ints() %>%
@@ -343,7 +400,7 @@ out_arg_max_cent <- get_abundance(
 #   })
 # 
 # x <- rep(c(100,300,500,800,1000,2000),each = 3)
-# y <- sapply(out, function(x){
+# y <- sapply(out_conc, function(x){
 #   return(x %>% select(allAbundance) %>% unlist)
 # }) %>% as.vector
 # library(ggplot2)
@@ -355,7 +412,7 @@ out_arg_max_cent <- get_abundance(
 # data <- mutate(data,newy = predict(model,data))
 # 
 # ggplot(data, aes(x=Conc,y=Abundance)) +
-#   geom_point(aes(x = Conc, y = Abundance, color = factor(Conc)), size = .8, show.legend = FALSE) +
+#   geom_point(aes(x = Conc, y = Abundance, color = factor(Conc)), size = 1.5, show.legend = FALSE) +
 #   ggtitle("C/N Abundance vs. Concentration") +
 #   xlab("Concentration (ppb)") +
 #   ylab("Abundance") +

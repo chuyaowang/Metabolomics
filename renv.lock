@@ -85,6 +85,17 @@
         "yaml"
       ]
     },
+    "BiocVersion": {
+      "Package": "BiocVersion",
+      "Version": "3.15.2",
+      "Source": "Bioconductor",
+      "git_url": "https://git.bioconductor.org/packages/BiocVersion",
+      "git_branch": "master",
+      "git_last_commit": "818ab03",
+      "git_last_commit_date": "2022-03-29",
+      "Hash": "48e545a2fa24a967de72b1114bfe96ac",
+      "Requirements": []
+    },
     "Biostrings": {
       "Package": "Biostrings",
       "Version": "2.64.0",
@@ -101,6 +112,24 @@
         "S4Vectors",
         "XVector",
         "crayon"
+      ]
+    },
+    "CAMERA": {
+      "Package": "CAMERA",
+      "Version": "1.52.0",
+      "Source": "Bioconductor",
+      "git_url": "https://git.bioconductor.org/packages/CAMERA",
+      "git_branch": "RELEASE_3_15",
+      "git_last_commit": "63642b8",
+      "git_last_commit_date": "2022-04-26",
+      "Hash": "76535aa00d8f12849747b9841d7ffa8b",
+      "Requirements": [
+        "Biobase",
+        "Hmisc",
+        "RBGL",
+        "graph",
+        "igraph",
+        "xcms"
       ]
     },
     "ComplexHeatmap": {
@@ -527,6 +556,20 @@
       "Hash": "d128ea05a972d3e67c6f39de52c72bd7",
       "Requirements": []
     },
+    "RBGL": {
+      "Package": "RBGL",
+      "Version": "1.72.0",
+      "Source": "Bioconductor",
+      "git_url": "https://git.bioconductor.org/packages/RBGL",
+      "git_branch": "RELEASE_3_15",
+      "git_last_commit": "a86f310",
+      "git_last_commit_date": "2022-04-26",
+      "Hash": "7977db911751ce0f30305135f6d37f83",
+      "Requirements": [
+        "BH",
+        "graph"
+      ]
+    },
     "RColorBrewer": {
       "Package": "RColorBrewer",
       "Version": "1.1-3",
@@ -556,6 +599,14 @@
         "Rcpp",
         "RcppEigen"
       ]
+    },
+    "RUnit": {
+      "Package": "RUnit",
+      "Version": "0.4.32",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "11af2a900964b790c6d775e0c9e8025f",
+      "Requirements": []
     },
     "Rcpp": {
       "Package": "Rcpp",
@@ -1484,15 +1535,26 @@
     },
     "future": {
       "Package": "future",
-      "Version": "1.27.0",
+      "Version": "1.29.0",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "f6811da7bee83f2cef50ee3d21c5c794",
+      "Hash": "783c201d2edfee73263de8e17cbdfa8e",
       "Requirements": [
         "digest",
         "globals",
         "listenv",
         "parallelly"
+      ]
+    },
+    "future.apply": {
+      "Package": "future.apply",
+      "Version": "1.10.0",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "a930c9ddc317f898e6f5bed7be8dd322",
+      "Requirements": [
+        "future",
+        "globals"
       ]
     },
     "gargle": {
@@ -1761,10 +1823,10 @@
     },
     "globals": {
       "Package": "globals",
-      "Version": "0.16.0",
+      "Version": "0.16.1",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "2fb246aa501a4fa799448f3984b0c5c1",
+      "Hash": "e14798793892c6bebdbe2f144aacf6e6",
       "Requirements": [
         "codetools"
       ]
@@ -1823,6 +1885,19 @@
         "vctrs"
       ]
     },
+    "graph": {
+      "Package": "graph",
+      "Version": "1.74.0",
+      "Source": "Bioconductor",
+      "git_url": "https://git.bioconductor.org/packages/graph",
+      "git_branch": "RELEASE_3_15",
+      "git_last_commit": "4af608a",
+      "git_last_commit_date": "2022-04-26",
+      "Hash": "08e64017b9fc86340df1a13eb89573cc",
+      "Requirements": [
+        "BiocGenerics"
+      ]
+    },
     "graphlayouts": {
       "Package": "graphlayouts",
       "Version": "0.8.1",
@@ -1853,12 +1928,31 @@
       "Hash": "5b79228594f02385d4df4979284879ae",
       "Requirements": []
     },
+    "gsignal": {
+      "Package": "gsignal",
+      "Version": "0.3-5",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "000474ca7aa42533937282b8539b11b7",
+      "Requirements": [
+        "Rcpp",
+        "pracma"
+      ]
+    },
     "gtable": {
       "Package": "gtable",
       "Version": "0.3.0",
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "ac5c6baf7822ce8732b343f14c072c4d",
+      "Requirements": []
+    },
+    "gtools": {
+      "Package": "gtools",
+      "Version": "3.9.3",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "32600a0bea839c4d0ac998d7c547ecf7",
       "Requirements": []
     },
     "haven": {
@@ -2280,6 +2374,24 @@
       "Hash": "7ce2733a9826b3aeb1775d56fd305472",
       "Requirements": []
     },
+    "mapdata": {
+      "Package": "mapdata",
+      "Version": "2.3.0",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "24d44d79d566ec6a618bef7afd7aedfe",
+      "Requirements": [
+        "maps"
+      ]
+    },
+    "maps": {
+      "Package": "maps",
+      "Version": "3.4.0",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "b3d98a967ec17c80f795719529812fa0",
+      "Requirements": []
+    },
     "markdown": {
       "Package": "markdown",
       "Version": "1.1",
@@ -2295,14 +2407,14 @@
       "Package": "masscleaner",
       "Version": "1.0.4",
       "Source": "GitLab",
-      "Remotes": "gitlab::jaspershen/masstools, gitlab::jaspershen/massdataset",
       "RemoteType": "gitlab",
+      "Remotes": "gitlab::jaspershen/masstools, gitlab::jaspershen/massdataset",
       "RemoteHost": "gitlab.com",
       "RemoteRepo": "masscleaner",
       "RemoteUsername": "jaspershen",
       "RemoteRef": "HEAD",
       "RemoteSha": "e375c7b40f557e6eebd15979e11eedb653ab136c",
-      "Hash": "fbf863e0423525e59d1f9e69bcca7830",
+      "Hash": "d74ebb23fb13cd558a76e76cec8c2712",
       "Requirements": [
         "BiocGenerics",
         "BiocParallel",
@@ -2327,14 +2439,14 @@
       "Package": "massdataset",
       "Version": "1.0.13",
       "Source": "GitLab",
-      "Remotes": "gitlab::jaspershen/masstools",
       "RemoteType": "gitlab",
+      "Remotes": "gitlab::jaspershen/masstools",
       "RemoteHost": "gitlab.com",
       "RemoteRepo": "massdataset",
       "RemoteUsername": "jaspershen",
       "RemoteRef": "HEAD",
       "RemoteSha": "2907208ff3c9fecdb2dca3bf75d3ac8587afbfef",
-      "Hash": "c3cfa35ff259778d314b59d3f38b429a",
+      "Hash": "a358700a77356c6cd3a99717e55ede4b",
       "Requirements": [
         "ComplexHeatmap",
         "S4Vectors",
@@ -2365,14 +2477,14 @@
       "Package": "massprocesser",
       "Version": "1.0.2",
       "Source": "GitLab",
-      "Remotes": "gitlab::jaspershen/masstools, gitlab::jaspershen/massdataset",
       "RemoteType": "gitlab",
+      "Remotes": "gitlab::jaspershen/masstools, gitlab::jaspershen/massdataset",
       "RemoteHost": "gitlab.com",
       "RemoteRepo": "massprocesser",
       "RemoteUsername": "jaspershen",
       "RemoteRef": "HEAD",
       "RemoteSha": "13f659e3afd1d1ba6934784011421e508b5d3882",
-      "Hash": "3a5d6a14dce3797bb4b30abe6357d159",
+      "Hash": "8a38d0b919402a92142bb6a21ecd446d",
       "Requirements": [
         "Biobase",
         "BiocParallel",
@@ -2400,14 +2512,14 @@
       "Package": "massqc",
       "Version": "1.0.4",
       "Source": "GitLab",
-      "Remotes": "gitlab::jaspershen/masstools, gitlab::jaspershen/massdataset",
       "RemoteType": "gitlab",
+      "Remotes": "gitlab::jaspershen/masstools, gitlab::jaspershen/massdataset",
       "RemoteHost": "gitlab.com",
       "RemoteRepo": "massqc",
       "RemoteUsername": "jaspershen",
       "RemoteRef": "HEAD",
       "RemoteSha": "4840cad9b081d9442ac0d81418302cac9ccc8e2b",
-      "Hash": "9a5419f72e10804d8ca2254522c90f60",
+      "Hash": "049a526d66a66faf6c17d06199de72a7",
       "Requirements": [
         "cli",
         "crayon",
@@ -2431,14 +2543,14 @@
       "Package": "massstat",
       "Version": "1.0.2",
       "Source": "GitLab",
-      "Remotes": "gitlab::jaspershen/masstools, gitlab::jaspershen/massdataset",
       "RemoteType": "gitlab",
+      "Remotes": "gitlab::jaspershen/masstools, gitlab::jaspershen/massdataset",
       "RemoteHost": "gitlab.com",
       "RemoteRepo": "massstat",
       "RemoteUsername": "jaspershen",
       "RemoteRef": "HEAD",
       "RemoteSha": "3a64cd5da65902fc9fce03ef51f2268618411e61",
-      "Hash": "cce7116041b4257cbbf61ee154c59d38",
+      "Hash": "88e5bbe578b3c4e091fd1431ca0d06d5",
       "Requirements": [
         "BiocParallel",
         "ComplexHeatmap",
@@ -2525,14 +2637,14 @@
       "Package": "metid",
       "Version": "1.2.19",
       "Source": "GitLab",
-      "Remotes": "gitlab::jaspershen/masstools, gitlab::jaspershen/massdataset",
       "RemoteType": "gitlab",
+      "Remotes": "gitlab::jaspershen/masstools, gitlab::jaspershen/massdataset",
       "RemoteHost": "gitlab.com",
       "RemoteRepo": "metid",
       "RemoteUsername": "jaspershen",
       "RemoteRef": "HEAD",
       "RemoteSha": "d4b2efd413ab7bb91c9f75bcdde568d9e3b73e40",
-      "Hash": "3ac65f5af22c8acce49ea762d32f9b53",
+      "Hash": "6a82c5ba61b520e5d4ccfcab4b53170d",
       "Requirements": [
         "BiocParallel",
         "MSnbase",
@@ -2567,14 +2679,14 @@
       "Package": "metpath",
       "Version": "1.0.1",
       "Source": "GitLab",
-      "Remotes": "gitlab::jaspershen/metid, gitlab::jaspershen/massdataset",
       "RemoteType": "gitlab",
+      "Remotes": "gitlab::jaspershen/metid, gitlab::jaspershen/massdataset",
       "RemoteHost": "gitlab.com",
       "RemoteRepo": "metpath",
       "RemoteUsername": "jaspershen",
       "RemoteRef": "HEAD",
       "RemoteSha": "0035180ad066db5a208b2e1bd8cd558663bbe380",
-      "Hash": "cb0d8b16fa06607a45635f484f8edb28",
+      "Hash": "15da57b14e805ad3734011ea6b213da8",
       "Requirements": [
         "KEGGREST",
         "cli",
@@ -2670,6 +2782,14 @@
         "reshape2",
         "tidyr"
       ]
+    },
+    "mnormt": {
+      "Package": "mnormt",
+      "Version": "2.1.0",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "dc13319a6a370e3ce538a1c17f58ce57",
+      "Requirements": []
     },
     "modelr": {
       "Package": "modelr",
@@ -2854,6 +2974,14 @@
         "mvtnorm"
       ]
     },
+    "permute": {
+      "Package": "permute",
+      "Version": "0.9-7",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "abf0ca85c1c752e0d04f46334e635046",
+      "Requirements": []
+    },
     "pillar": {
       "Package": "pillar",
       "Version": "1.8.1",
@@ -3005,6 +3133,14 @@
       "Hash": "ceb5c2a59ba33d42d051285a3e8a5118",
       "Requirements": []
     },
+    "pracma": {
+      "Package": "pracma",
+      "Version": "2.4.2",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "69f905ec128691ff7108de88fc5a4964",
+      "Requirements": []
+    },
     "praise": {
       "Package": "praise",
       "Version": "1.0.0",
@@ -3097,6 +3233,18 @@
       "Hash": "8b93531308c01ad0e56d9eadcc0c4fcd",
       "Requirements": []
     },
+    "psych": {
+      "Package": "psych",
+      "Version": "2.2.5",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "26d0b7b5e1ffdd323fbef13772cc27ef",
+      "Requirements": [
+        "lattice",
+        "mnormt",
+        "nlme"
+      ]
+    },
     "purrr": {
       "Package": "purrr",
       "Version": "0.3.4",
@@ -3168,6 +3316,18 @@
       "Repository": "CRAN",
       "Hash": "5e3c5dc0b071b21fa128676560dbe94d",
       "Requirements": []
+    },
+    "raster": {
+      "Package": "raster",
+      "Version": "3.5-21",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "2a312d1edc9253ed38245f586744216e",
+      "Requirements": [
+        "Rcpp",
+        "sp",
+        "terra"
+      ]
     },
     "rcmdcheck": {
       "Package": "rcmdcheck",
@@ -3241,6 +3401,21 @@
         "tibble"
       ]
     },
+    "remote": {
+      "Package": "remote",
+      "Version": "1.2.1",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "5c641e787545b7376c8c8dd6e021abd1",
+      "Requirements": [
+        "Rcpp",
+        "gridExtra",
+        "latticeExtra",
+        "mapdata",
+        "raster",
+        "scales"
+      ]
+    },
     "remotes": {
       "Package": "remotes",
       "Version": "2.4.2",
@@ -3297,6 +3472,23 @@
       "Hash": "ae34cd56890607370665bee5bd17812f",
       "Requirements": [
         "lazyeval"
+      ]
+    },
+    "rgl": {
+      "Package": "rgl",
+      "Version": "0.109.6",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "0da70b9563a89391fd62468724cdbafc",
+      "Requirements": [
+        "R6",
+        "base64enc",
+        "htmltools",
+        "htmlwidgets",
+        "jsonlite",
+        "knitr",
+        "magrittr",
+        "mime"
       ]
     },
     "rjson": {
@@ -3588,6 +3780,16 @@
       "Hash": "947e4e02a79effa5d512473e10f41797",
       "Requirements": []
     },
+    "sp": {
+      "Package": "sp",
+      "Version": "1.5-0",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "2a118bdd2db0a301711e0a9e3e3206d5",
+      "Requirements": [
+        "lattice"
+      ]
+    },
     "spatial": {
       "Package": "spatial",
       "Version": "7.3-11",
@@ -3685,6 +3887,16 @@
         "cpp11"
       ]
     },
+    "terra": {
+      "Package": "terra",
+      "Version": "1.6-3",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "7a6e8023898e3549818e60fd9ec2eeb8",
+      "Requirements": [
+        "Rcpp"
+      ]
+    },
     "testthat": {
       "Package": "testthat",
       "Version": "3.1.4",
@@ -3763,14 +3975,14 @@
       "Package": "tidymass",
       "Version": "1.0.1",
       "Source": "GitLab",
-      "Remotes": "gitlab::jaspershen/masstools, gitlab::jaspershen/massdataset,\n        gitlab::jaspershen/massprocesser,\n        gitlab::jaspershen/masscleaner, gitlab::jaspershen/massstat,\n        gitlab::jaspershen/metpath, gitlab::jaspershen/metid,\n        gitlab::jaspershen/massqc",
       "RemoteType": "gitlab",
+      "Remotes": "gitlab::jaspershen/masstools, gitlab::jaspershen/massdataset,\n    gitlab::jaspershen/massprocesser, gitlab::jaspershen/masscleaner,\n    gitlab::jaspershen/massstat, gitlab::jaspershen/metpath,\n    gitlab::jaspershen/metid, gitlab::jaspershen/massqc",
       "RemoteHost": "gitlab.com",
       "RemoteRepo": "tidymass",
       "RemoteUsername": "jaspershen",
       "RemoteRef": "HEAD",
       "RemoteSha": "1ff4c5be0c409ee8274540e5522adb33cddd3914",
-      "Hash": "84b8b1e94d61bdf66a43fb09789bf3ef",
+      "Hash": "d9e0c8566b86fc55e3d34ccbedbf34d3",
       "Requirements": [
         "cli",
         "crayon",
@@ -3962,6 +4174,20 @@
         "cli",
         "glue",
         "rlang"
+      ]
+    },
+    "vegan": {
+      "Package": "vegan",
+      "Version": "2.6-2",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "97bfb04067dc125eb0f00fda67801898",
+      "Requirements": [
+        "MASS",
+        "cluster",
+        "lattice",
+        "mgcv",
+        "permute"
       ]
     },
     "viridis": {

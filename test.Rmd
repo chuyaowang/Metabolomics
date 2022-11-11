@@ -81,45 +81,71 @@ get_ppm_range <- function(x,ppm) {
 }
 
 rsd <- function(x) {sd(x)/mean(x)} # relative standard deviation
-```
 
-```{r addFunc}
 remove_zeros <- function(x) {
   x <- x[!x==0]
   return(x)
 }
 ```
 
-
 ```{r setVariables}
-datadir = "./data/20221012" # Edit data directory
+datadir = "./rdata/20221031/stable/" # Edit data directory
 ppm = 5
-rt_range = c(2.3,3.0)
-C = 6
-H = 14
-N = 2
+rt_range = c(.5,1.5)
+C = 2
+H = 5
+N = 1
 O = 2
 pol = 1 # -1 for neg mode
 unlabeled = NA # If "C" or "N" is unlabeled, or NA if C and N are both labeled
 centroidData = TRUE # use centroided data or not; using centroided data takes the max intensity in a mz dimension cluster; using original data takes the sum intensity in a mz dimension cluster
 parallel = FALSE # Use biocparallel or not; not recommended
+multiplier = 0.5
+backgroundRange = 1
 
 register(SerialParam())
 
-fls <- list.files(path = datadir, pattern = "^.*\\.mzML$",
-                  all.files = TRUE, full.names = TRUE,
-                  recursive = FALSE, ignore.case = FALSE,
-                  include.dirs = FALSE, no.. = TRUE)  %>%
-  mixedsort(decreasing = F)
-
-fls_cent <- fls[str_detect(fls,"cent")]
-
-fls <- fls[!str_detect(fls,"cent")]
+# fls <- list.files(path = datadir, pattern = "^.*\\.mzML$",
+#                   all.files = TRUE, full.names = TRUE,
+#                   recursive = FALSE, ignore.case = FALSE,
+#                   include.dirs = FALSE, no.. = TRUE)  %>%
+#   mixedsort(decreasing = F)
+# 
+# fls_cent <- fls[str_detect(fls,"cent")]
+# 
+# fls <- fls[!str_detect(fls,"cent")]
 ```
 
 ```{r readData}
+fls <- list.files(path = datadir, pattern = "^.*\\.mzML$",
+                    all.files = TRUE, full.names = TRUE,
+                    recursive = FALSE, ignore.case = FALSE,
+                    include.dirs = FALSE, no.. = TRUE)  %>%
+    mixedsort(decreasing = F)
+  
+  # Centroid data if not already centroided
+  if (centroidData == TRUE) { # If using centroided data
+    check <- (str_detect(fls,"cent") %>% sum) > 0 # check if centroided data already exist
+    
+    if (check == TRUE) { # if exist
+      fls <- fls[str_detect(fls,"cent")] # read only the centroided data
+    } else if (check == FALSE) { # if not exist
+      print("Data not centroided yet. Computing centroids")
+      data_cent(file = fls) # centroid data and save
+      print("Data centroided and saved")
+      # Get new file names
+      fls <- list.files(path = datadir, pattern = "^.*\\cent.mzML$",
+                        all.files = TRUE, full.names = TRUE,
+                        recursive = FALSE, ignore.case = FALSE,
+                        include.dirs = FALSE, no.. = TRUE)  %>%
+        mixedsort(decreasing = F)
+    }
+  } else if (centroidData == FALSE) { # if not using centroided data
+    fls <- fls[!str_detect(fls,"cent")] # get only uncentroided file names
+  }
+
 data <- readMSData(fls, mode = "onDisk")
-data_cent <- readMSData(fls_cent, mode = "onDisk")
+# data_cent <- readMSData(fls_cent, mode = "onDisk")
 ```
 
 ```{r getMzs}
@@ -134,213 +160,113 @@ mzs_vec <- as.vector(as.matrix(mzs))
 ```
 
 ```{r getChr}
+rt_range <- 60*rt_range
 chr <- data %>%
   filterMz(mz = get_ppm_range(x=max(mzs),ppm=ppm)) %>%
-  filterRt(rt = 60*rt_range) %>%
-  chromatogram(aggregationFun = "max", missing = 0)
+  filterRt(rt = rt_range) %>%
+  chromatogram(aggregationFun = "sum", missing = 0)
+```
 
-chr_cent <- data_cent %>%
-  filterMz(mz = get_ppm_range(x=max(mzs),ppm=ppm)) %>%
-  filterRt(rt = 60*rt_range) %>%
-  chromatogram(aggregationFun = "max", missing = 0)
+```{r getRTRanges}
+f <- 3
+ctl_range <- data %>%
+  filterFile(f) %>%
+  fData %>%
+  select(retentionTime) %>%
+  filter(. == max(.) | . == min(.)) %>%
+  unlist
+ctl_range1 <- c(max(ctl_range[1],rt_range[1]-backgroundRange*60),rt_range[1])
+ctl_range2 <- c(rt_range[2],min(ctl_range[2],rt_range[2]+backgroundRange*60))
+
+sprintf("Ranges for background substraction: %.3f to %.3f seconds and %.3f to %.3f seconds",ctl_range1[1],ctl_range1[2],ctl_range2[1],ctl_range2[2])
+
+data_ctl1 <- data %>%
+  filterFile(f) %>%
+  filterRt(rt = ctl_range1)
+data_ctl2 <- data %>%
+  filterFile(f) %>%
+  filterRt(rt = ctl_range2)
 ```
 
 ```{r getInts_uncent_mean}
-meanIntensity = TRUE # compute intensities from max spectra or mean of half-width spectrum
-mz_int <- lapply(seq_along(fls), function(f) {
-    print(paste("Processing File",f))
-    res_uncent_mean <- list()
-    
-    # Get acquisition number(s)
-    if (meanIntensity == TRUE) {
-      ints <- intensity(chr[1,f])
-      acNum <- ints[ints >= (0.5*max(ints))] %>%
-        names %>%
-        str_extract("(?<=S)[:digit:]+") %>%
-        as.integer
-    } else if (meanIntensity == FALSE) {
-      acNum <- intensity(chr[1,f]) %>%
-        which.max %>%
-        names %>%
-        str_extract("(?<=S)[:digit:]+") %>%
-        as.integer
-    }
-    
-    # Getting spectrum
-    sp <- data %>%
-      filterFile(f) %>%
-      filterAcquisitionNum(n = acNum)
-    
-    for (i in seq_along(mzs_vec)) {
-      x <- mzs_vec[i]
-      
-      # Matching mzs
-      matched <- sp %>%
-        filterMz(mz = get_ppm_range(x = x,ppm = ppm))
-      
-      # Obtain mz intensity pair
-      vals <- c(mz(matched) %>% unlist %>% remove_zeros %>% mean,
-                intensity(matched) %>% sapply(sum) %>% remove_zeros %>% mean)
-      
-      # Output result
-      if (is.na(sum(vals))) {
-        res_uncent_mean[[i]] <- c(x,0)
-      } else {
-        res_uncent_mean[[i]] <- vals
-      }
-    }
-    
-    return(res_uncent_mean)
+multiplier <- .5 # compute intensities from max spectra or mean of half-width spectrum
 
-  })
-```
 
-```{r getInts_uncent_max}
-meanIntensity = FALSE # compute intensities from max spectra or mean of half-width spectrum
-mz_int_uncent_max <- lapply(seq_along(fls), function(f) {
-    print(paste("Processing File",f))
-    res_uncent_max <- list()
-    
-    # Get acquisition number(s)
-    if (meanIntensity == TRUE) {
-      ints <- intensity(chr[1,f])
-      acNum <- ints[ints >= (0.5*max(ints))] %>%
-        names %>%
-        str_extract("(?<=S)[:digit:]+") %>%
-        as.integer
-    } else if (meanIntensity == FALSE) {
-      acNum <- intensity(chr[1,f]) %>%
-        which.max %>%
-        names %>%
-        str_extract("(?<=S)[:digit:]+") %>%
-        as.integer
-    }
-    
-    # Getting spectrum
-    sp <- data %>%
-      filterFile(f) %>%
-      filterAcquisitionNum(n = acNum)
-    
-    for (i in seq_along(mzs_vec)) {
-      x <- mzs_vec[i]
-      
-      # Matching mzs
-      matched <- sp %>%
-        filterMz(mz = get_ppm_range(x = x,ppm = ppm))
-      
-      # Obtain mz intensity pair
-      vals <- c(mz(matched) %>% sapply(mean) %>% remove_zeros %>% mean,
-                intensity(matched) %>% sapply(sum) %>% remove_zeros %>% mean)
-      
-      # Output result
-      if (is.na(sum(vals))) {
-        res_uncent_max[[i]] <- c(x,0)
-      } else {
-        res_uncent_max[[i]] <- vals
-      }
-    }
-    
-    return(res_uncent_max)
-  })
+print(paste("Processing File",f))
+res <- list()
+
+# Get acquisition number(s)
+if (as.integer(multiplier) != 1) {
+  ints <- intensity(chr[1,f])
+  acNum <- ints[ints >= (multiplier*max(ints))] %>%
+    names %>%
+    str_extract("(?<=S)[:digit:]+") %>%
+    as.integer
+} else if (as.integer(multiplier) == 1) {
+  acNum <- intensity(chr[1,f]) %>%
+    which.max %>%
+    names %>%
+    str_extract("(?<=S)[:digit:]+") %>%
+    as.integer
+}
+
+sp <- data %>%
+  filterFile(f) %>%
+  filterAcquisitionNum(n = acNum)
+
 
 ```
 
-```{r getInts_cent_mean}
-meanIntensity = TRUE # compute intensities from max spectra or mean of half-width spectrum
-mz_int_cent_mean <- lapply(seq_along(fls), function(f) {
-    print(paste("Processing File",f))
-    res_uncent_mean <- list()
-    
-    # Get acquisition number(s)
-    if (meanIntensity == TRUE) {
-      ints <- intensity(chr_cent[1,f])
-      acNum <- ints[ints >= (0.5*max(ints))] %>%
-        names %>%
-        str_extract("(?<=S)[:digit:]+") %>%
-        as.integer
-    } else if (meanIntensity == FALSE) {
-      acNum <- intensity(chr_cent[1,f]) %>%
-        which.max %>%
-        names %>%
-        str_extract("(?<=S)[:digit:]+") %>%
-        as.integer
-    }
-    
-    # Getting spectrum
-    sp <- data_cent %>%
-      filterFile(f) %>%
-      filterAcquisitionNum(n = acNum)
-    
-    for (i in seq_along(mzs_vec)) {
-      x <- mzs_vec[i]
-      
-      # Matching mzs
-      matched <- sp %>%
-        filterMz(mz = get_ppm_range(x = x,ppm = ppm))
-      
-      # Obtain mz intensity pair
-      vals <- c(mz(matched) %>% unlist %>% remove_zeros %>% mean,
-                intensity(matched) %>% sapply(sum) %>% remove_zeros %>% mean)
-      
-      # Output result
-      if (is.na(sum(vals))) {
-        res_uncent_mean[[i]] <- c(x,0)
-      } else {
-        res_uncent_mean[[i]] <- vals
-      }
-    }
-    
-    return(res_uncent_mean)
+```{r, warning=FALSE}
+res <- list()
+for (i in seq_along(mzs_vec)) {
+  x <- mzs_vec[i]
+  
+  # Matching mzs
+  matched <- sp %>%
+    filterMz(mz = get_ppm_range(x = x,ppm = ppm))
+  
+  # Obtain mz intensity pair
+  vals <- c(mz(matched) %>% unlist %>% remove_zeros %>% mean,
+            intensity(matched) %>% sapply(sum) %>% remove_zeros %>% mean)
+  
+  # Background subtraction -----
+  data_ctl1_med <- data_ctl1 %>%
+    filterMz(mz = get_ppm_range(x=x,ppm=ppm)) %>%
+    intensity %>%
+    sapply(sum) %>%
+    remove_zeros %>%
+    median()
+  data_ctl2_med <- data_ctl2 %>%
+    filterMz(mz = get_ppm_range(x=x,ppm=ppm)) %>%
+    intensity %>%
+    sapply(sum) %>%
+    remove_zeros %>%
+    median()
+  
+  if (is.na(data_ctl1_med)) {
+    med <- data_ctl2_med
+  } else if (is.na(data_ctl2_med)) {
+    med <- data_ctl1_med
+  } else {
+    med <- median(c(data_ctl1_med,data_ctl2_med))
+  }
+  
+  if (is.na(med)) {med <- 0}
+  
+  vals[2] <- vals[2] - med
+  if (is.na(vals[2])) {
+    vals[2] <- 0
+  } else if (vals[2]<0) {
+    vals[2] <- 0
+  }
+  
+  # Output result -----
+  if (is.na(sum(vals))) {
+    res[[i]] <- c(x,0)
+  } else {
+    res[[i]] <- vals
+  }
+}
 
-  })
-```
-
-```{r getInts_cent_mean}
-meanIntensity = FALSE # compute intensities from max spectra or mean of half-width spectrum
-mz_int_cent_max <- lapply(seq_along(fls), function(f) {
-    print(paste("Processing File",f))
-    res_uncent_mean <- list()
-    
-    # Get acquisition number(s)
-    if (meanIntensity == TRUE) {
-      ints <- intensity(chr_cent[1,f])
-      acNum <- ints[ints >= (0.5*max(ints))] %>%
-        names %>%
-        str_extract("(?<=S)[:digit:]+") %>%
-        as.integer
-    } else if (meanIntensity == FALSE) {
-      acNum <- intensity(chr_cent[1,f]) %>%
-        which.max %>%
-        names %>%
-        str_extract("(?<=S)[:digit:]+") %>%
-        as.integer
-    }
-    
-    # Getting spectrum
-    sp <- data_cent %>%
-      filterFile(f) %>%
-      filterAcquisitionNum(n = acNum)
-    
-    for (i in seq_along(mzs_vec)) {
-      x <- mzs_vec[i]
-      
-      # Matching mzs
-      matched <- sp %>%
-        filterMz(mz = get_ppm_range(x = x,ppm = ppm))
-      
-      # Obtain mz intensity pair
-      vals <- c(mz(matched) %>% unlist %>% remove_zeros %>% mean,
-                intensity(matched) %>% sapply(sum) %>% remove_zeros %>% mean)
-      
-      # Output result
-      if (is.na(sum(vals))) {
-        res_uncent_mean[[i]] <- c(x,0)
-      } else {
-        res_uncent_mean[[i]] <- vals
-      }
-    }
-    
-    return(res_uncent_mean)
-
-  })
 ```

@@ -1,5 +1,6 @@
 library(dplyr)
 library(openxlsx)
+library(stringr)
 
 fls <- "./data/features.xlsx"
 
