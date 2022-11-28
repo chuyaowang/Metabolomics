@@ -341,7 +341,7 @@ retrieve_ints <- function(out) {
 ## Edit parameters -----
 plan(multisession, workers = 4)
 
-out_arg_max_cent <- get_abundance(
+out <- get_abundance(
   datadir = "./rdata/20221108/", # Edit data directory
   ppm = 5,
   rt_range = c(.4,2.5), # Retention time range for the ENTIRE PEAK

@@ -10,3 +10,4 @@ html/
 .RData
 data/
 output/
+.DS_Store
