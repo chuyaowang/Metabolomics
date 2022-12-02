@@ -1,15 +1,3 @@
-data_cent <- function(file) {
-  data <- readMSData(file,
-                     mode = "onDisk") %>%
-    pickPeaks()
-  
-  fls_new <- fileNames(data) %>%
-    str_sub(end=-6) %>%
-    paste("cent",sep = "_") %>%
-    paste("mzML",sep = ".")
-  writeMSData(data, file = fls_new)
-}
-
 remove_original <- function() {
   fls <- list.files(path = datadir, pattern = "^.*\\.mzML$",
                     all.files = TRUE, full.names = TRUE,
@@ -69,6 +57,25 @@ remove_zeros <- function(x) {
   return(x)
 }
 # Should have a dedicated read data fcn
+read_data <- function(fls, centroidData){
+  # Check if fls contain centroided files
+  check <- str_detect(fls,"cent") %>% sum %>% `>`(0)
+  if (check & centroidData) {
+    data <- readMSData(fls, mode = "onDisk")
+  } else if (!check & centroidData) {
+    data <- readMSData(fls, mode = "onDisk") %>%
+      pickPeaks()
+    fls_new <- fileNames(data) %>%
+      str_sub(end=-6) %>%
+      paste("cent",sep = "_") %>%
+      paste("mzML",sep = ".")
+    writeMSData(data, file = fls_new)
+    data <- readMSData(fls_new %>% mixedsort(decreasing = T), mode = "onDisk")
+  } else if (!centroidData) {
+    data <- readMSData(fls, mode = "onDisk")
+  }
+  return(data)
+}
 get_abundance <- function(datadir, ppm, rt_range, C, N, H, O, pol, parallel = FALSE, multiplier = 0.5, centroidData = TRUE, unlabeled = NA, backgroundRange = 1) {
   # Set up parallel processing
   if (parallel == FALSE) {
