@@ -335,3 +335,9 @@ retrieve_ints <- function(out) {
   ints <- out %>% select(colnames(out)[str_detect(colnames(out),"int")|str_detect(colnames(out),'Abundance')])
   return(ints)
 }
+
+xy_range_str <- function(e) {
+  if(is.null(e)) return("NULL\n")
+  paste0("xmin=", round(e$xmin, 1), " xmax=", round(e$xmax, 1), 
+         " ymin=", round(e$ymin, 1), " ymax=", round(e$ymax, 1))
+}

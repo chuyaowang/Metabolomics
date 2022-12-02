@@ -9,6 +9,8 @@ library(purrr)
 library(ggplot2)
 library(bslib)
 library(future.apply)
+library(thematic)
+library(shinycssloaders)
 source("./helpers.R")
 
 # Define UI ----
@@ -80,7 +82,7 @@ ui <- navbarPage(
           condition = "input.plotData",
           tableOutput("mztable"),
           uiOutput("plotOptions"),
-          plotOutput("chr"),
+          withSpinner(plotOutput("chr", brush = "chr.brush"), type = 5 ,color = "#18BC9C", size = .65),
           verbatimTextOutput("test")
         )
       )
@@ -231,8 +233,10 @@ server <- function(input, output) {
   })
   
   output$test <- renderText({
-    req(input$whichfile)
+    req(input$whichfile,dataNames(),input$chr.brush)
     input$whichfile
+    dataNames()
+    xy_range_str(input$chr.brush)
   }) 
   
   # Generate reactive rt and background controls
@@ -251,6 +255,7 @@ server <- function(input, output) {
   })
   
   # Generate plot
+  thematic::thematic_shiny()
   chr <- reactive({
     req(data(),input$ppm, input$whichmz)
     data() %>% filterMz(mz = get_ppm_range(x = as.numeric(input$whichmz), ppm = input$ppm)) %>% chromatogram(aggregationFun = "max", missing = 0)
@@ -267,7 +272,7 @@ server <- function(input, output) {
     
     if (input$whichfile != "All") {
       idx <- which(dataNames() == input$whichfile)
-      chrom_data <- chrom_data[[idx]]
+      chrom_data <- chrom_data[idx]
       groups <- groups[idx]
     }
     
@@ -278,7 +283,7 @@ server <- function(input, output) {
             legend.title = element_blank(),
             plot.margin = unit(c(0.5,0.5,0.5,0.5),"cm"),
             plot.title = element_text(hjust = 0.5),
-            axis.text.x = element_text(angle = angle, vjust = 0.5, hjust = 1))
+            axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
     
     chrom_plot <- lapply(seq_along(chrom_data), function(i){
       geom_line(aes(x = chrom_data[[i]][,1], y = chrom_data[[i]][,2], color = groups[i]))
@@ -289,6 +294,18 @@ server <- function(input, output) {
     }
     
     return(chrom_base)
+  })
+  
+  # Update rt and bg ranges based on selection
+  observe({
+    req(input$whichrange, !is.null(input$chr.brush), input$chr.brush)
+    minval <- max(round(input$chr.brush$xmin,3),rtRange()[1])
+    maxval <- min(round(input$chr.brush$xmax,3),rtRange()[2])
+    if (input$whichrange == "Retention time") {
+      updateSliderInput(inputId = "rt_select",value = c(minval,maxval))
+    } else if (input$whichrange == "Background") {
+      updateSliderInput(inputId = "bg_select",value = c(minval,maxval))
+    }
   })
 }
 
