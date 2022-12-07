@@ -1,13 +1,3 @@
-remove_original <- function() {
-  fls <- list.files(path = datadir, pattern = "^.*\\.mzML$",
-                    all.files = TRUE, full.names = TRUE,
-                    recursive = FALSE, ignore.case = FALSE,
-                    include.dirs = FALSE, no.. = TRUE)  %>%
-    mixedsort(decreasing = F)
-  fls <- fls[!str_detect(fls,"cent")]
-  file.remove(fls)
-}
-
 get_mz_cn <- function(C,N,H,O,pol) {
   # Get the mz ratios of a C and N isotope labeled compound
   # specify the number of c, n, h, o atoms
@@ -56,7 +46,7 @@ remove_zeros <- function(x) {
   x <- x[!x==0]
   return(x)
 }
-# Should have a dedicated read data fcn
+
 read_data <- function(fls, centroidData){
   # Check if fls contain centroided files
   check <- str_detect(fls,"cent") %>% sum %>% `>`(0)
@@ -76,153 +66,76 @@ read_data <- function(fls, centroidData){
   }
   return(data)
 }
-get_abundance <- function(datadir, ppm, rt_range, C, N, H, O, pol, parallel = FALSE, multiplier = 0.5, centroidData = TRUE, unlabeled = NA, backgroundRange = 1) {
-  # Set up parallel processing
-  if (parallel == FALSE) {
-    register(SerialParam())
-  } else if (parallel == TRUE) { # Not recommended, can have many errors
-    if (.Platform$OS.type == "unix") {
-      register(bpstart(MulticoreParam(6)))
-    } else {
-      register(bpstart(SnowParam()))
-    }
-  }
+
+get_abundance <- function(data, ppm, rt_range, bg_range, mzs, multiplier, background, unlabeled) {
+  # Set up serial processing
+  register(SerialParam())
   
-  # File names
-  fls <- list.files(path = datadir, pattern = "^.*\\.mzML$",
-                    all.files = TRUE, full.names = TRUE,
-                    recursive = FALSE, ignore.case = FALSE,
-                    include.dirs = FALSE, no.. = TRUE)  %>%
-    mixedsort(decreasing = T)
-  
-  # Centroid data if not already centroided
-  if (centroidData == TRUE) { # If using centroided data
-    check <- (str_detect(fls,"cent") %>% sum) > 0 # check if centroided data already exist
-    
-    if (check == TRUE) { # if exist
-      fls <- fls[str_detect(fls,"cent")] # read only the centroided data
-    } else if (check == FALSE) { # if not exist
-      print("Data not centroided yet. Computing centroids")
-      data_cent(file = fls) # centroid data and save
-      print("Data centroided and saved")
-      # Get new file names
-      fls <- list.files(path = datadir, pattern = "^.*\\cent.mzML$",
-                        all.files = TRUE, full.names = TRUE,
-                        recursive = FALSE, ignore.case = FALSE,
-                        include.dirs = FALSE, no.. = TRUE)  %>%
-        mixedsort(decreasing = F)
-    }
-  } else if (centroidData == FALSE) { # if not using centroided data
-    fls <- fls[!str_detect(fls,"cent")] # get only uncentroided file names
-  }
-  
-  # Read data -----
-  data <- readMSData(fls, mode = "onDisk")
-  print("Data reading complete")
-  
-  # Get mz values -----
-  mzs <- get_mz_cn(C=C,H=H,N=N,O=O,pol=pol) # mz ratio
+  # Make mz vector and labels
   label <- sapply(colnames(mzs), function(x) {
     sapply(rownames(mzs), function(y) {
       paste(x,y,sep="_")
     })
   })
   mzs_vec <- as.vector(as.matrix(mzs))
-  print(paste((C+1)*(N+1),"mz values computed"))
-  
-  # Get chromatogram -----
-  rt_range <- 60*rt_range
-  chr <- data %>%
-    filterMz(mz = get_ppm_range(x=max(mzs),ppm=ppm)) %>%
-    filterRt(rt = rt_range) %>%
-    chromatogram(aggregationFun = "sum", missing = 0)
-  print("Chromatogram reading complete")
   
   # Get intensities -----
-  mz_int <- future_lapply(seq_along(fls), function(f) {
-    print(paste("Processing File",f))
+  mz_int <- future_lapply(seq_along(fileNames(data)), function(f) {
     res <- list()
     
-    # Get acquisition number(s) -----
-    if (as.integer(multiplier) != 1) {
-      ints <- intensity(chr[1,f])
-      acNum <- ints[ints >= (multiplier*max(ints))] %>%
-        names %>%
-        str_extract("(?<=S)[:digit:]+") %>%
-        as.integer
-    } else if (as.integer(multiplier) == 1) {
-      acNum <- intensity(chr[1,f]) %>%
-        which.max %>%
-        names %>%
-        str_extract("(?<=S)[:digit:]+") %>%
-        as.integer
+    # Filtering for peak range-----
+    data_peak <- data %>%
+      filterFile(f) %>%
+      filterRt(rt = rt_range)
+    
+    # Filtering for background range-----
+    if (background) {
+      data_bg <- data %>%
+        filterFile(f) %>%
+        filterRt(rt = bg_range)
     }
-    
-    # Getting analyte spectrum -----
-    data_ana <- data %>%
-      filterFile(f) %>%
-      filterAcquisitionNum(n = acNum)
-    
-    # Getting control spectrum -----
-    ctl_range <- data %>%
-      filterFile(f) %>%
-      fData %>%
-      select(retentionTime) %>%
-      unlist
-    ctl_range <- c(min(ctl_range),max(ctl_range))
-    ctl_range1 <- c(max(ctl_range[1],rt_range[1]-backgroundRange*60),rt_range[1])
-    ctl_range2 <- c(rt_range[2],min(ctl_range[2],rt_range[2]+backgroundRange*60))
-    
-    sprintf("Ranges for background substraction: %.3f to %.3f seconds and %.3f to %.3f seconds",ctl_range1[1],ctl_range1[2],ctl_range2[1],ctl_range2[2])
-    
-    data_ctl1 <- data %>%
-      filterFile(f) %>%
-      filterRt(rt = ctl_range1)
-    data_ctl2 <- data %>%
-      filterFile(f) %>%
-      filterRt(rt = ctl_range2)
+
     
     for (i in seq_along(mzs_vec)) {
       x <- mzs_vec[i]
       
-      # Matching mzs
-      matched <- data_ana %>%
-        filterMz(mz = get_ppm_range(x = x,ppm = ppm))
+      # Filtering for mz range and extract spectra
+      data_peak_mz <- data_peak %>%
+        filterMz(mz = get_ppm_range(x = x,ppm = ppm)) %>%
+        spectra
       
-      # Obtain mz intensity pair
-      vals <- c(mz(matched) %>% unlist %>% remove_zeros %>% median,
-                intensity(matched) %>% sapply(sum) %>% remove_zeros %>% median)
-      
-      # Background subtraction -----
-      data_ctl1_med <- data_ctl1 %>%
-        filterMz(mz = get_ppm_range(x=x,ppm=ppm)) %>%
-        intensity %>%
-        sapply(sum) %>%
-        remove_zeros %>%
-        median
-      # data_ctl2_med <- data_ctl2 %>%
-      #   filterMz(mz = get_ppm_range(x=x,ppm=ppm)) %>%
-      #   intensity %>%
-      #   sapply(sum) %>%
-      #   remove_zeros %>%
-      #   median
-      data_ctl2_med <- data_ctl1_med
-      
-      if (is.na(data_ctl1_med)) {
-        med <- data_ctl2_med
-      } else if (is.na(data_ctl2_med)) {
-        med <- data_ctl1_med
-      } else {
-        med <- median(c(data_ctl1_med,data_ctl2_med))
+      if (background) {
+        data_bg_mz <- data_bg %>%
+          filterMz(mz = get_ppm_range(x = x,ppm = ppm)) %>%
+          spectra
       }
       
-      if (is.na(med)) {med <- 0}
+      # Get acquisition numbers
+      if (x == max(mzs_vec)) {
+        ints <- lapply(data_peak_mz,function(x){x@intensity}) %>% sapply(sum)
+        acNum <- which(ints >= multiplier*max(ints))
+      }
       
-      vals[2] <- vals[2] - med
-      if (is.na(vals[2])) {
-        vals[2] <- 0
-      } else if (vals[2]<0) {
-        vals[2] <- 0
+      # Get mz intensity pairs
+      val.mz <- lapply(data_peak_mz, function(x) {x@mz}) %>% `[`(acNum) %>% unlist %>% remove_zeros %>% median
+      val.intensity <- lapply(data_peak_mz, function(x) {x@intensity}) %>% `[`(acNum) %>% sapply(sum) %>% remove_zeros %>% median
+      vals <- c(val.mz,val.intensity)
+
+      # Background subtraction -----
+      if (background) {
+        bg.intensity <- lapply(data_bg_mz, function(x) {x@intensity}) %>%
+          sapply(sum) %>%
+          remove_zeros %>%
+          median
+        
+        if (is.na(bg.intensity)) {bg.intensity <- 0}
+        
+        vals[2] <- vals[2] - bg.intensity
+        if (is.na(vals[2])) {
+          vals[2] <- 0
+        } else if (vals[2]<0) {
+          vals[2] <- 0
+        }
       }
       
       # Output result -----
@@ -236,7 +149,6 @@ get_abundance <- function(datadir, ppm, rt_range, C, N, H, O, pol, parallel = FA
     return(res)
   })
   
-  print("Done processing. Generating output...")
   # Generate output
   out <- sapply(mz_int, function(f) {
     d <- unlist(f)
@@ -244,30 +156,23 @@ get_abundance <- function(datadir, ppm, rt_range, C, N, H, O, pol, parallel = FA
     t %>%
     as.data.frame
   
-  # rownames(out) <- paste("File",seq_along(fls),sep = "_")
-  rownames(out) <- fls %>%
-    str_split("/") %>%
-    as.data.frame %>%
-    t %>%
-    `[`(,ncol(.))
+  rownames(out) <- fileNames(data) %>%
+    basename %>%
+    sub(pattern = "\\.mzX?ML", replacement = "")
+  
   colnames(out) <- paste(
     rep(label,each = 2),
     rep(c("mz","int"),times = length(label)),
     sep = "_"
   )
   
+  C <- ncol(mzs) - 1
+  N <- nrow(mzs) - 1
+  
   if (!is.na(unlabeled) & unlabeled == "C") {
-    print("C is unlabeled")
-    out <- out %>%
-      select(colnames(out)[str_detect(colnames(out),"C0")])
     C <- 0
-    label <- label[str_detect(label,"C0")]
   } else if (!is.na(unlabeled) & unlabeled == "N") {
-    print("N is unlabeled")
-    out <- out %>%
-      select(colnames(out)[str_detect(colnames(out),"N0")])
     N <- 0
-    label <- label[str_detect(label,"N0")]
   }
   
   out <- out %>%
@@ -277,7 +182,6 @@ get_abundance <- function(datadir, ppm, rt_range, C, N, H, O, pol, parallel = FA
     )
   
   if ((unlabeled == "N")|is.na(unlabeled)) {
-    print("Computing [13]C abundance")
     out <- out %>%
       mutate(c13Abundance = sapply(seq_along(label), function(x) {
         a <- out %>%
@@ -289,11 +193,9 @@ get_abundance <- function(datadir, ppm, rt_range, C, N, H, O, pol, parallel = FA
         `/`(C*total)
       ) %>%
       select(c13Abundance,everything())
-    print(paste("RSD of [13]C:",rsd(out$c13Abundance)))
   }
   
   if ((unlabeled == "C")|is.na(unlabeled)) {
-    print("Computing [15]N abundance")
     out <- out %>%
       mutate(n15Abundance = sapply(seq_along(label), function(x) {
         a <- out %>%
@@ -305,11 +207,9 @@ get_abundance <- function(datadir, ppm, rt_range, C, N, H, O, pol, parallel = FA
         `/`(N*total)
       ) %>%
       select(n15Abundance,everything())
-    print(paste("RSD of [15]N:",rsd(out$n15Abundance)))
   }
   
   if (is.na(unlabeled)) {
-    print("Computing total isotope abundance")
     out <- out %>%
       mutate(allAbundance = sapply(seq_along(label), function(x) {
         a <- out %>%
@@ -323,9 +223,7 @@ get_abundance <- function(datadir, ppm, rt_range, C, N, H, O, pol, parallel = FA
         `/` ((N+C)*total)
       ) %>%
       select(allAbundance,everything())
-    print(paste("RSD of total isotope:",rsd(out$allAbundance)))
   }
-  print("Output generated")
   return(out)
 }
 
@@ -334,10 +232,4 @@ rsd <- function(x) {sd(x)/mean(x)} # relative standard deviation
 retrieve_ints <- function(out) {
   ints <- out %>% select(colnames(out)[str_detect(colnames(out),"int")|str_detect(colnames(out),'Abundance')])
   return(ints)
-}
-
-xy_range_str <- function(e) {
-  if(is.null(e)) return("NULL\n")
-  paste0("xmin=", round(e$xmin, 1), " xmax=", round(e$xmax, 1), 
-         " ymin=", round(e$ymin, 1), " ymax=", round(e$ymax, 1))
 }

@@ -12,9 +12,11 @@ library(future.apply)
 library(thematic)
 library(shinycssloaders)
 source("./helpers.R")
+options(warn = -1)
 
 # Define UI ----
 ui <- navbarPage(
+
   title = HTML("HRMS"),
   
   theme = bs_theme(version = 4, bootswatch = "flatly"),
@@ -49,32 +51,42 @@ ui <- navbarPage(
           selectInput("polarity", label = NULL, choices = c("+","-"), width = "50%"),
           helpText("Choose compound labeling status"),
           selectInput("unlabeled", label = NULL, choices = c("[13]C and [15]N labeled", "[13]C labeled", "[15]N labeled")),
-          helpText("Fill in all areas to plot"),
+          helpText("Fill in compound formula to proceed"),
         ),
         conditionalPanel(
           condition = "output.showPlot",
-          actionButton("plotData", "Plot")
-        ),
-        conditionalPanel(
-          condition = "input.plotData",
-          helpText("Retention Time Range (sec);"),
+          helpText("Peak Range (sec);"),
           uiOutput("rt_control"),
-          helpText("Minimum percent of max intensity for a spectrum to be used in calculation"),
+          helpText("Use intensites greater than what percent of max intensity to compute average?"),
           numericInput("multiplier", label = NULL, value = 1, min = 0.1, max = 1, step = 0.1, width = "50%"),
-          checkboxInput("background", label = "Background subtraction (beta)")
+          checkboxInput("background", label = "Background subtraction (beta)", value = TRUE)
         ),
         conditionalPanel(
-          condition = "input.background",
+          condition = "input.background && output.showPlot",
           helpText("Background Range (sec);"),
           uiOutput("bg_control")
+        ),
+        conditionalPanel(
+          condition = "output.showPlot",
+          helpText("Plot chromatogram"),
+          actionButton("plotData", "Plot"),
+          br(),
+          br(),
+          helpText("Run when done setting parameters"),
+          actionButton("run", "Run")
+        ),
+        conditionalPanel(
+          condition = "output.showDownload",
+          br(),
+          helpText("Click to download result"),
+          downloadButton("download","Download")
         )
-
-        
       ),
       
       # Main Panel ----
       mainPanel(
         "Files to be processed:",
+        verbatimTextOutput("test"),
         br(),
         htmlOutput("filelist"),
         htmlOutput("readDone"),
@@ -82,8 +94,11 @@ ui <- navbarPage(
           condition = "input.plotData",
           tableOutput("mztable"),
           uiOutput("plotOptions"),
-          withSpinner(plotOutput("chr", brush = "chr.brush"), type = 5 ,color = "#18BC9C", size = .65),
-          verbatimTextOutput("test")
+          withSpinner(plotOutput("chr", brush = "chr.brush"), type = 5 ,color = "#18BC9C", size = .65)
+        ),
+        conditionalPanel(
+          condition = "input$run",
+          withSpinner(tableOutput("table"), type = 5 ,color = "#18BC9C", size = .65)
         )
       )
     )
@@ -105,20 +120,20 @@ server <- function(input, output) {
   
   # Make reactive file list
   files <- reactive({
-    req(input$datadir, input$centroid)
+    req(input$datadir, !isEmpty(input$centroid))
     fls <- list.files(path = parseDirPath(roots, input$datadir), pattern = "^.*\\.mzML$",
                  all.files = TRUE, full.names = TRUE,
                  recursive = FALSE, ignore.case = FALSE,
                  include.dirs = FALSE, no.. = TRUE)  %>%
       mixedsort(decreasing = F)
-    if (input$centroid == TRUE) {
+    if (input$centroid) {
       fls_cent <- fls[str_detect(fls,"cent")]
       if (length(fls_cent)==0) {
-        fls
-      } else {
-        fls_cent
+        return(fls)
+      } else if (length(fls_cent)>0) {
+        return(fls_cent)
       }
-    } else {
+    } else if (!input$centroid) {
       fls <- fls[!str_detect(fls, "cent")]
       fls
     }
@@ -132,7 +147,7 @@ server <- function(input, output) {
   
   # Print filelist
   output$filelist <- renderUI({
-    req(files(), input$centroid)
+    req(files(), !isEmpty(input$centroid))
     if (input$centroid == TRUE) {
       check <- files() %>% str_detect(.,"cent") %>% sum
       if (check>0) {
@@ -201,6 +216,8 @@ server <- function(input, output) {
       "[13]C labeled" = mzs[nrow(mzs),], 
       "[15]N labeled" = select(mzs,ncol(mzs))
     )
+    
+    return(mzs)
     }) %>%
     bindCache(input$C, input$N, input$H, input$O, pol(), input$unlabeled)
   
@@ -228,16 +245,9 @@ server <- function(input, output) {
     fluidRow(
       column(3,selectInput("whichmz", label = "Choose mz value", choices = round(mzs_vec(),4))),
       column(3, selectInput("whichfile", label = "Choose file to plot", choices = c(dataNames(),"All"))),
-      column(6, selectInput("whichrange", label = "Select for", choices = c("Retention time", "Background")))
+      column(6, selectInput("whichrange", label = "Select for", choices = c("Peak", "Background")))
     )
   })
-  
-  output$test <- renderText({
-    req(input$whichfile,dataNames(),input$chr.brush)
-    input$whichfile
-    dataNames()
-    xy_range_str(input$chr.brush)
-  }) 
   
   # Generate reactive rt and background controls
   rtRange <- reactive({
@@ -301,13 +311,61 @@ server <- function(input, output) {
     req(input$whichrange, !is.null(input$chr.brush), input$chr.brush)
     minval <- max(round(input$chr.brush$xmin,3),rtRange()[1])
     maxval <- min(round(input$chr.brush$xmax,3),rtRange()[2])
-    if (input$whichrange == "Retention time") {
+    if (input$whichrange == "Peak") {
       updateSliderInput(inputId = "rt_select",value = c(minval,maxval))
     } else if (input$whichrange == "Background") {
       updateSliderInput(inputId = "bg_select",value = c(minval,maxval))
     }
   })
+  
+  # Generate final result table
+  out <- reactive({
+    req(data(),input$ppm,input$rt_select,input$bg_select,mzs(),input$multiplier, !isEmpty(input$background), input$unlabeled)
+    
+    temp <- get_abundance(data = data(), 
+                  ppm = input$ppm, 
+                  rt_range = input$rt_select, 
+                  bg_range = input$bg_select, 
+                  mzs = mzs(), 
+                  multiplier = input$multiplier, 
+                  background = input$background, 
+                  unlabeled = switch(
+                    input$unlabeled,
+                    "[13]C and [15]N labeled" = NA, 
+                    "[13]C labeled" = "N", 
+                    "[15]N labeled" = "C"
+                  ))
+    
+    temp <- bind_rows(temp,sapply(temp, rsd))
+    rownames(temp)[length(rownames(temp))] <- "RSD"
+    
+    return(temp)
+  }) %>%
+    bindCache(data(),input$ppm,input$rt_select,input$bg_select,mzs(),input$multiplier, input$background, input$unlabeled) %>%
+    bindEvent(input$run)
+  
+  output$table <- renderTable({
+    req(out())
+    out()
+  }, rownames = TRUE, digits = 6, striped = TRUE, hover = TRUE, bordered = TRUE)
+  
+  # Download button
+  output$showDownload <- reactive({
+    req(out())
+    TRUE
+  })
+  outputOptions(output, "showDownload", suspendWhenHidden = FALSE)
+  
+  output$download <- downloadHandler(
+    filename = function() {
+      "output.csv"
+    },
+    content = function(file) {
+      write.csv(out(), file, row.names = TRUE)
+    }
+  )
 }
+
 
 # Run the app ----
 shinyApp(ui = ui, server = server)
