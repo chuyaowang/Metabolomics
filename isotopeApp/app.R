@@ -78,8 +78,8 @@ ui <- navbarPage(
         conditionalPanel(
           condition = "output.showDownload",
           br(),
-          helpText("Click to download result"),
-          downloadButton("download","Download")
+          helpText("Click to save result"),
+          downloadButton("download","Save")
         )
       ),
       
