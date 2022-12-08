@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en-us">
+    <head>
+        <title>
+            help
+        </title>
+        <meta charset="UTF-8"/>
+        <style>
+            .center {
+                display: block;
+                margin-left: auto;
+                margin-right: auto;
+                text-align: center;
+                max-width: 30%;
+                height: auto;
+            }
+        </style>
+    </head>
+
+    <body>
+        <h2>
+            How to use the calculator
+        </h2>
+        <hr>
+        <h3>
+            Overview
+        </h3>
+        <div>
+            The app computes [13]C, [15]N, and combined abundances for doubly labeled compounds using .mzML data files as input, and outputs a table that contains the abundances, mz values, and intensities for all of the input files. The calculation requires several <span><i>parameters</i></span> to be entered, for which this app provides a convienient interface. This help pages aims to give an explanation of what the parameters mean and what values should be entered.   
+        </div>
+        <br>
+        <h3>
+            Walkthrough
+        </h3>
+        <h4>
+            Step 1:
+        </h4>
+        <div>
+            The calculator has two panels, the side panel and the main panel. The side panel is used for entering parameters and clicking control buttons. The main panel is used for displaying results. Upon entering the app, the left panel displays a <span><b>Choose Data Directory</b></span> button. The main panel displays a line of text that is "Files to be processed". Click the <span><b>Load Data</b></span> button to open the file browser.
+        </div>
+        <br>
+        <img src="step1.png" alt="Step 1" class="center">
+        <h4>
+            Step 2:
+        </h4>
+        <div>
+            Open the file browser and select the folder containing the data files. Click on the folder and click the select button. Note that the data is not read until a <span><b>Load Data</b></span> button is clicked in later steps.
+        </div>
+        <br>
+        <img src="step2.png" alt="Step 2" class="center">
+        <h4>
+            Step 3:
+        </h4>
+        <div>
+            After choosing the data directory, the list of files that will be loaded and processed is printed on the main panel, and a checkbox appears under the <span><b>Choose Data Directory</b></span> button to filter the list of files for centroided or non-centroided data. The uncentroided data is in profile mode, while the centroided data is in centroid mode. The centroided data is smaller and takes less time to compute, but may yield different results from the uncentroided counterpart due to loss of information. If the folder does not contain centroided files, centroided versions of the original file will be computed automatically, saved, and loaded.
+        </div>
+        <br>
+        <img src="step3.png" alt="Step 3" class="center">
+        <h4>
+            Step 4:
+        </h4>
+        <div>
+            Load the data with the <span><b>Load Data</b></span> button after selecting whether to use centroided data or not. After a while, the loaded file names will be printed on the main panel for further confirmation. At the same time, more input fields will be displayed down the side panel. All fields must be filled to proceed to the next section.
+            <br>
+            <br>
+            The <i>C</i>, <i>N</i>, <i>H</i>, <i>O</i> fields are used to input compound formulas. As of right now, other elements are not supported. Integer values should be entered.
+            <br>
+            <br>
+            The <i>ppm</i> field is used to select how many ppms within the target mz value should be searched to get the corresponding intensity. The value defaults to 5 ppm for HRMS data, although the peaks on the mz dimension is typically around only 1 ppm.
+            <br>
+            <br>
+            The <i>polarity</i> option determines whether the data is obtained in positive or negative mode.
+            <br>
+            <br>
+            The <i>labeled</i> option determines whether the compound is singly labeled by C or N or doubly labeled.
+        </div>
+        <br>
+        <img src="step4.png" alt="Step 4" class="center">
+        <h4>
+            Step 5:
+        </h4>
+        <div>
+            The peak range and background range sliders show after all the fields above are filled. The peak range should cover the whole peak, while the background should be a range before or after the peak in which the chromatogram is relatively flat. If doing background subtraction is not desired, the <span><i>Background Subtraction</i></span> checkbox can be unchecked.
+            <br>
+            <br>
+            After setting the ranges, the calculation is ready to start. Click the <span><b>Run</b></span> button to start the calculation. Alternatively, the retention time and background ranges can be selected interactively on the chromatogram. Click the <span><b>Plot</b></span> button to generate the plot.
+        </div>
+        <br>
+        <img src="step5.png" alt="Step 5" class="center">
+        <h4>
+            Step 6
+        </h4>
+        <div>
+            This part explains the controls for the chromatogram. To learn about viewing and downloading result, skip to step 7.
+        </div>
+        <h5>
+            Step 6-1
+        </h5>
+        <div>
+            A table of mz values will be displayed on the main panel after the <span><b>Plot</b></span> button is clicked. The table shows mz values corresponding to different labeling modes. The table provides reference for the <i>Choose mz value</i> dropdown list below. Here you can choose the mz value to display the chromatogram for.
+        </div>
+        <img src="step6_1.png" alt="Step 6-1" class="center">
+        <h5>
+            Step 6-2
+        </h5>
+        <div>
+            You can use the <span><i>Choose file to plot</i></span> dropdown list to select which file to display the chromatogram for. There is also an "All" option to display a combination of all the files.
+        </div>
+        <img src="step6_2.png" alt="Step 6-2" class="center">
+        <h5>
+            Step 6-3
+        </h5>
+        <div>
+            By dragging on the plot, you can interactively select the peak and the background ranges. Use the <span><i>Select for</i></span> dropdown list to select which range to update.
+        </div>
+        <img src="step6_3.png" alt="Step 6-3" class="center">
+        <h4>
+            Step 7
+        </h4>
+        <div>
+            After the calculation is finished, a table will display the results on the main panel, and the RSD (relative standard deviation) of each column will be displayed on the last row. Click the <span><b>Save</b></span> button to save the result as a .csv file.
+        </div>
+        <img src="step7.png" alt="Step 7" class="center">
+        <h4>
+            Step 8
+        </h4>
+        <div>
+           Clicking the save button opens the file browser. Choose file name and location to save the result. 
+        </div>
+        <img src="step8.png" alt="Step 8" class="center">
+    </body>
+</html>
