@@ -17,7 +17,7 @@ options(warn = -1)
 # Define UI ----
 ui <- navbarPage(
 
-  title = HTML("HRMS"),
+  title = HTML("v1.0"),
   
   theme = bs_theme(version = 4, bootswatch = "flatly"),
   
