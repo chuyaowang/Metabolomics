@@ -1,0 +1,41 @@
+---
+title: "xcms tutorial"
+author: "Chuyao Wang"
+date: "`r Sys.Date()`"
+output: 
+  html_document: 
+    number_sections: true # automatic section numbering
+    toc: yes # table of content
+    toc_depth: 3
+    toc_float: true
+    smooth_scroll: true
+    toc_collapsed: true
+    fig_caption: yes
+    df_print: kable
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding = encoding, output_dir = "./html") })
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(stringr)
+library(openxlsx)
+```
+
+Load data and clean up colnames.
+```{r}
+data <- read.xlsx("./data/cellstudy1202.xlsx")
+data <- data %>%
+  `[`(,!str_detect(colnames(.),"QC")) %>%
+  `[`(,!str_detect(colnames(.),"methanol"))
+
+colnames(data) <- colnames(data) %>% str_remove(.,"768O") %>% str_remove(.,"_Waters_Zhu_ddMS2_[:digit:]+_[:digit:]+") %>% str_remove(.,".raw.") %>% str_remove("\\(F[:digit:]+\\)")
+```
+
+Get max area for each metabolite in each sample
+```{r}
+a <- c(8:11)
+```
+
