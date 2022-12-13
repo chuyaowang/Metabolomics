@@ -36,6 +36,11 @@ colnames(data) <- colnames(data) %>% str_remove(.,"768O") %>% str_remove(.,"_Wat
 
 Get max area for each metabolite in each sample
 ```{r}
-a <- c(8:11)
+featureData <- select(data,colnames(data)[!str_detect(colnames(data),"Area")])
+areas <- select(data,colnames(data)[str_detect(colnames(data),"Area")])
+areas.new <- lapply(1:(ncol(areas)/4),function(i) {
+  idx <- (i-1)*4+c(1:4)
+  return(apply(areas[,idx],MARGIN=1,max,na.rm=TRUE))
+})
 ```
 
