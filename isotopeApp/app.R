@@ -17,7 +17,7 @@ options(warn = -1)
 # Define UI ----
 ui <- navbarPage(
 
-  title = HTML("v1.0"),
+  title = HTML("v1.1"),
   
   theme = bs_theme(version = 4, bootswatch = "flatly"),
   
@@ -45,12 +45,15 @@ ui <- navbarPage(
             column(6,numericInput("N","N",value = NULL,min=0,max=60,step=1)),
             column(6,numericInput("O","O",value = NULL,min=0,max=60,step=1))
           ),
+          fluidRow(
+            column(6,numericInput("S","S",value = NULL,min=0,max=60,step=1))
+          ),
+          uiOutput("formulaInput"),
+          verbatimTextOutput("test"),
           helpText("Enter mass error in ppm"),
           numericInput("ppm",label = NULL, value = 5, min = 0, max = 50, step = 1, width = "50%"),
           helpText("Choose data polarity"),
           selectInput("polarity", label = NULL, choices = c("+","-"), width = "50%"),
-          helpText("Choose compound labeling status"),
-          selectInput("unlabeled", label = NULL, choices = c("[13]C and [15]N labeled", "[13]C labeled", "[15]N labeled")),
           helpText("Fill in compound formula to proceed"),
         ),
         conditionalPanel(
@@ -86,7 +89,6 @@ ui <- navbarPage(
       # Main Panel ----
       mainPanel(
         "Files to be processed:",
-        verbatimTextOutput("test"),
         br(),
         htmlOutput("filelist"),
         htmlOutput("readDone"),
@@ -109,6 +111,13 @@ ui <- navbarPage(
     HTML("Help"),
     
     includeHTML("./www/help.html")
+  ),
+  
+  # Changelog
+  tabPanel(
+    HTML("Change Log"),
+    
+    includeHTML("./www/changelog.html")
   )
 )
 
@@ -175,7 +184,7 @@ server <- function(input, output) {
   
   # Condition for showing plot button
   output$showPlot <- reactive({
-    req(input$C,input$H,input$N,input$O,data())
+    req(input$C,input$H,input$N,input$O,input$c13,input$n15,data())
     TRUE
   })
   outputOptions(output, "showPlot", suspendWhenHidden = FALSE)
@@ -199,6 +208,35 @@ server <- function(input, output) {
     )
   })
   
+  # Generate reactive compound formula input
+  output$formulaInput <- renderUI({
+    req(input$C,input$N)
+    tagList(
+      helpText("Enter the number of labeled atoms"),
+      fluidRow(
+        column(6,numericInput("c13","[13]C",value = input$C,min=0,max=60,step=1)),
+        column(6,numericInput("n15","[15]N",value = input$N,min=0,max=60,step=1))
+      )
+    )
+  })
+  
+  # Report unlabeled status
+  unlabeled <- reactive({
+    req(input$c13,input$n15)
+    if (input$c13 == 0) {
+      temp <- "C"
+    } else if (input$n15 == 0) {
+      temp <- "N"
+    } else {
+      temp <- NA
+    }
+    return(temp)
+  })
+  
+  output$test <- renderText({
+    unlabeled()
+  })
+
   # Generate reactive plot options
   pol <- reactive({
     switch(
@@ -209,19 +247,12 @@ server <- function(input, output) {
   })
   
   mzs <- reactive({
-    req(input$C, input$N, input$H, input$O, pol(), data())
-    mzs <- get_mz_cn(C=input$C,N=input$N,H=input$H,O=input$O,pol=pol())
-    
-    mzs <- switch(
-      input$unlabeled,
-      "[13]C and [15]N labeled" = mzs, 
-      "[13]C labeled" = mzs[nrow(mzs),], 
-      "[15]N labeled" = select(mzs,ncol(mzs))
-    )
+    req(input$C, input$N, input$H, input$O, input$S, input$c13, input$n15, pol(), data())
+    mzs <- get_mz_cn(C=input$C,N=input$N,H=input$H,O=input$O,S=input$S,c13=input$c13,n15=input$n15,pol=pol())
     
     return(mzs)
     }) %>%
-    bindCache(input$C, input$N, input$H, input$O, pol(), input$unlabeled)
+    bindCache(input$C, input$N, input$H, input$O, input$S, input$c13, input$n15, pol())
   
   label <- reactive({
     req(mzs())
@@ -240,10 +271,12 @@ server <- function(input, output) {
     bindCache(mzs())
   
   output$mztable <- renderTable({
+    req(mzs())
     mzs()
   }, rownames = TRUE, digits = 4, striped = TRUE, hover = TRUE, bordered = TRUE)
   
   output$plotOptions <- renderUI({
+    req(mzs_vec(),dataNames())
     fluidRow(
       column(3,selectInput("whichmz", label = "Choose mz value", choices = round(mzs_vec(),4))),
       column(3, selectInput("whichfile", label = "Choose file to plot", choices = c(dataNames(),"All"))),
@@ -322,7 +355,7 @@ server <- function(input, output) {
   
   # Generate final result table
   out <- reactive({
-    req(data(),input$ppm,input$rt_select,input$bg_select,mzs(),input$multiplier, !isEmpty(input$background), input$unlabeled)
+    req(data(),input$ppm,input$rt_select,input$bg_select,mzs(),input$multiplier, !isEmpty(input$background), !isEmpty(unlabeled()))
     
     temp <- get_abundance(data = data(), 
                   ppm = input$ppm, 
@@ -331,19 +364,14 @@ server <- function(input, output) {
                   mzs = mzs(), 
                   multiplier = input$multiplier, 
                   background = input$background, 
-                  unlabeled = switch(
-                    input$unlabeled,
-                    "[13]C and [15]N labeled" = NA, 
-                    "[13]C labeled" = "N", 
-                    "[15]N labeled" = "C"
-                  ))
+                  unlabeled = unlabeled())
     
     temp <- bind_rows(temp,sapply(temp, rsd))
     rownames(temp)[length(rownames(temp))] <- "RSD"
     
     return(temp)
   }) %>%
-    bindCache(data(),input$ppm,input$rt_select,input$bg_select,mzs(),input$multiplier, input$background, input$unlabeled) %>%
+    bindCache(data(),input$ppm,input$rt_select,input$bg_select,mzs(),input$multiplier, input$background, unlabeled()) %>%
     bindEvent(input$run)
   
   output$table <- renderTable({

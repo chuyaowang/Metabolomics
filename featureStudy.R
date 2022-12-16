@@ -2,9 +2,8 @@
 library(dplyr)
 library(openxlsx)
 library(stringr)
-kegg <- read.xlsx("KEGG.xlsx")
 
-data <- read.xlsx("features.xlsx") 
+data <- read.xlsx("./data/features.xlsx") 
 data <- data %>%
   select(Name, colnames(data) %>% 
            `[`(str_detect(.,"Norm..Area")) %>%

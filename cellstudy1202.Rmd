@@ -26,21 +26,50 @@ library(openxlsx)
 
 Load data and clean up colnames.
 ```{r}
-data <- read.xlsx("./data/cellstudy1202.xlsx")
+data <- read.xlsx("./data/cellstudy20221202_CD33_result.xlsx")
 data <- data %>%
   `[`(,!str_detect(colnames(.),"QC")) %>%
   `[`(,!str_detect(colnames(.),"methanol"))
 
-colnames(data) <- colnames(data) %>% str_remove(.,"768O") %>% str_remove(.,"_Waters_Zhu_ddMS2_[:digit:]+_[:digit:]+") %>% str_remove(.,".raw.") %>% str_remove("\\(F[:digit:]+\\)")
+colnames(data) <- colnames(data) %>% str_remove(.,"768O") %>% str_remove(.,"_Waters_Zhu_ddMS2_[:digit:]+_[:digit:]+") %>% str_remove(.,".raw.") %>% str_remove("\\(F[:digit:]+\\)") %>% str_remove("._") %>% str_replace(":","_")
 ```
 
-Get max area for each metabolite in each sample
 ```{r}
-featureData <- select(data,colnames(data)[!str_detect(colnames(data),"Area")])
+# Get max area
+featureData <- select(data,colnames(data)[!str_detect(colnames(data),"Area")&!str_detect(colnames(data),"Peak")])
 areas <- select(data,colnames(data)[str_detect(colnames(data),"Area")])
 areas.new <- lapply(1:(ncol(areas)/4),function(i) {
   idx <- (i-1)*4+c(1:4)
   return(apply(areas[,idx],MARGIN=1,max,na.rm=TRUE))
-})
+}) %>%
+  data.frame()
+colnames(areas.new) <- colnames(areas) %>% str_remove(.,"_[:letter:]+_[:digit:]") %>% unique
+
+data.new <- cbind(featureData,areas.new)
+
+# Remove duplicate metabolites
+# If there are duplicates, merge by taking the max of each metabolite. Then keep only one row
+duped <- data.new$Formula %>% table %>% as.data.frame() %>% `[`(.$Freq>1,) %>% `[`(,1) %>% as.vector()
+for (i in duped) {
+  idx <- which(data.new$Formula %in% i)
+  newrow <- data.new[c(idx),] %>%
+    select(colnames(data.new)[str_detect(colnames(data.new),"Area")]) %>%
+    sapply(.,max)
+  for (j in idx) {
+    data.new[j,which(str_detect(colnames(data.new),"Area"))] <- newrow
+  }
+  data.new$Name[idx[-1]] <- "dup"
+}
+data.new <- data.new %>% filter((Name != "dup")|(is.na(Name)))
+
+# Give NA names an ID
+data.new$Name[which(is.na(data.new$Name))] <- paste("Unknown",seq_along(which(is.na(data.new$Name))),sep="_")
 ```
 
+```{r}
+# Transpose and process
+areas.out <- data.new %>% select(colnames(data.new)[str_detect(colnames(data.new),"Area")]) %>% t %>% as.data.frame
+colnames(areas.out) <- data.new$Name
+areas.out <- mutate(areas.out, grp = rownames(areas.out) %>% str_split_fixed(.,"_",3) %>% `[`(,3)) %>%
+  select(grp,everything())
+```

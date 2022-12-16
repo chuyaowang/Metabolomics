@@ -1,6 +1,6 @@
-get_mz_cn <- function(C,N,H,O,pol) {
+get_mz_cn <- function(C,N,H,O,S,c13,n15,pol) {
   # Get the mz ratios of a C and N isotope labeled compound
-  # specify the number of c, n, h, o atoms
+  # specify the number of c, n, h, o, s atoms
   # specify polarity for +1 charge or -1 charge
   
   m.c12 <- 12
@@ -11,9 +11,10 @@ get_mz_cn <- function(C,N,H,O,pol) {
   m.o16 <- 15.994915
   m.o17 <- 16.999131
   m.o18 <- 17.999159
+  m.s32 <- 31.972071
   m.p <- 1.00727646677 # ex mass of proton
   
-  b <- c(m.c12,m.c13,m.n14,m.n15,m.h,m.o16)
+  b <- c(m.c12,m.c13,m.n14,m.n15,m.h,m.o16,m.s32)
   
   a <- matrix(
     c(
@@ -22,7 +23,8 @@ get_mz_cn <- function(C,N,H,O,pol) {
       rep(0:N,times=C+1),
       rep(N:0,times=C+1),
       rep(H,times=(C+1)*(N+1)),
-      rep(O,times=(C+1)*(N+1))
+      rep(O,times=(C+1)*(N+1)),
+      rep(S,times=(C+1)*(N+1))
     ),
     ncol = length(b)
   )
@@ -35,6 +37,7 @@ get_mz_cn <- function(C,N,H,O,pol) {
   
   colnames(mz) <- paste("[13]C",C:0,sep = "")
   
+  mz <- mz[(N-n15+1):nrow(mz),(C-c13+1):ncol(mz)]
   return(mz)
 }
 
@@ -95,7 +98,6 @@ get_abundance <- function(data, ppm, rt_range, bg_range, mzs, multiplier, backgr
         filterRt(rt = bg_range)
     }
 
-    
     for (i in seq_along(mzs_vec)) {
       x <- mzs_vec[i]
       
