@@ -78,6 +78,43 @@ get_mz_ch <- function(C,N,H,O,S,c13,d,pol) {
   return(mz)
 }
 
+get_mz_nh <- function(C,N,H,O,S,n15,d,pol) {
+  m.c12 <- 12.000000
+  m.h <- 1.007825
+  m.d <- 2.014102
+  m.n14 <- 14.003074
+  m.n15 <- 15.000109
+  m.o16 <- 15.994915
+  m.s32 <- 31.972071
+  m.p <- 1.00727646677 # ex mass of proton
+  
+  b <- c(m.n14,m.n15,m.h,m.d,m.c12,m.o16,m.s32)
+  
+  a <- matrix(
+    c(
+      rep(0:N,each=H+1),
+      rep(N:0,each=H+1),
+      rep(0:H,times=N+1),
+      rep(H:0,times=N+1),
+      rep(C,times=(N+1)*(H+1)),
+      rep(O,times=(N+1)*(H+1)),
+      rep(S,times=(N+1)*(H+1))
+    ),
+    ncol = length(b)
+  )
+  
+  mz <- (a %*% b + pol*m.p) %>%
+    matrix(nrow = H+1, ncol = N+1) %>%
+    as.data.frame(
+      row.names = paste("D",H:0,sep = "")
+    )
+  
+  colnames(mz) <- paste("[15]N",N:0,sep = "")
+  
+  mz <- mz[(H-d+1):nrow(mz),(N-n15+1):ncol(mz)]
+  return(mz)
+}
+
 get_ppm_range <- function(x,ppm) {
   return(x*c(1-ppm*1e-6,1+ppm*1e-6))
 }
@@ -118,7 +155,7 @@ get_abundance <- function(data, ppm, rt_range, bg_range, mzs, multiplier, backgr
     })
   })
   mzs_vec <- as.vector(as.matrix(mzs))
-  # Always [13]C (for now)
+  # Either [13]C or [15]N
   label1 <- colnames(mzs) %>% str_remove(.,"(?<!\\[)[:digit:]+(?!\\])") %>% unique
   # Either D or [15]N
   label2 <- rownames(mzs) %>% str_remove(.,"(?<!\\[)[:digit:]+(?!\\])") %>% unique
@@ -209,15 +246,18 @@ get_abundance <- function(data, ppm, rt_range, bg_range, mzs, multiplier, backgr
     sep = "_"
   )
   
-  # From here on C represents # of [13]C, and N represents # of [15]N OR D
-  C <- ncol(mzs) - 1
-  N <- nrow(mzs) - 1
+  # numLab1: number of [13]C or [15]N
+  # numLab2: number of [15]N or D
+  numLab1 <- ncol(mzs) - 1
+  numLab2 <- nrow(mzs) - 1
   
-  # unlabeled is C or H or N or NA
-  if (!is.na(unlabeled) & unlabeled == "C") {
-    C <- 0
-  } else if (!is.na(unlabeled) & unlabeled != "C") {
-    N <- 0
+  # unlabeled is [13]C or D or [15]N or NA
+  if (!is.na(unlabeled)) {
+    if (label1 == unlabeled) {
+      numLab1 <- 0
+    } else if (label2 == unlabeled) {
+      numLab2 <- 0
+    }
   }
   
   out <- out %>%
@@ -226,48 +266,48 @@ get_abundance <- function(data, ppm, rt_range, bg_range, mzs, multiplier, backgr
              apply(.,MARGIN = 1,sum)
     )
   
-  if ((unlabeled != "C")|is.na(unlabeled)) {
+  if (numLab1 != 0) {
     out <- out %>%
-      mutate(c13Abundance = sapply(seq_along(label), function(x) {
+      mutate(lab1Abundance = sapply(seq_along(label), function(x) {
         a <- out %>%
           select(colnames(out)[str_detect(colnames(out),"int")])
-        b <- rep(C:0,each = N+1)
+        b <- rep(numLab1:0,each = numLab2+1)
         return(a[,x]*b[x])
       }) %>%
         apply(.,MARGIN = 1,sum) %>%
-        `/`(C*total)
+        `/`(numLab1*total)
       ) %>%
-      select(c13Abundance,everything())
+      select(lab1Abundance,everything())
     colnames(out)[1] <- paste(label1,"Abundance") 
   }
   
-  if ((unlabeled == "C")|is.na(unlabeled)) {
+  if (numLab2 != 0) {
     out <- out %>%
-      mutate(n15Abundance = sapply(seq_along(label), function(x) {
+      mutate(lab2Abundance = sapply(seq_along(label), function(x) {
         a <- out %>%
           select(colnames(out)[str_detect(colnames(out),"int")])
-        b <- rep(N:0,times = C+1)
+        b <- rep(numLab2:0,times = numLab1+1)
         return(a[,x]*b[x])
       }) %>%
         apply(.,MARGIN = 1,sum) %>%
-        `/`(N*total)
+        `/`(numLab2*total)
       ) %>%
-      select(n15Abundance,everything())
+      select(lab2Abundance,everything())
     colnames(out)[1] <- paste(label2,"Abundance") 
   }
   
-  if (is.na(unlabeled)) {
+  if (numLab1 != 0 & numLab2 != 0) {
     out <- out %>%
       mutate(allAbundance = sapply(seq_along(label), function(x) {
         a <- out %>%
           select(colnames(out)[str_detect(colnames(out),"int")])
-        b1 <- rep(C:0,each = N+1)
-        b2 <- rep(N:0,times = C+1)
+        b1 <- rep(numLab1:0,each = numLab2+1)
+        b2 <- rep(numLab2:0,times = numLab1+1)
         b <- b1+b2
         return(a[,x]*b[x])
       }) %>%
         apply(.,MARGIN = 1,sum) %>%
-        `/` ((N+C)*total)
+        `/` ((numLab2+numLab1)*total)
       ) %>%
       select(allAbundance,everything())
     colnames(out)[1] <- paste("All","Abundance") 

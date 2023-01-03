@@ -17,7 +17,7 @@ options(warn = -1)
 # Define UI ----
 ui <- navbarPage(
 
-  title = HTML("v1.2"),
+  title = HTML("v1.2.1"),
   
   theme = bs_theme(version = 4, bootswatch = "flatly"),
   
@@ -38,7 +38,7 @@ ui <- navbarPage(
           condition = "input.loadData",
           br(),
           helpText("Choose labeling mode"),
-          radioButtons("mode",label = NULL, choices = c("C-N Labeled","C-H Labeled"),inline = TRUE),
+          radioButtons("mode",label = NULL, choices = c("C-N Labeled","C-H Labeled","N-H Labeled"),inline = TRUE),
           helpText("Enter compound formula"),
           fluidRow(
             column(6,numericInput("C","C",value = NULL,min=0,max=60,step=1)),
@@ -232,6 +232,15 @@ server <- function(input, output) {
           column(6,numericInput("label2","D",value = input$H,min=0,max=input$H,step=1))
         )
       )
+    } else if (input$mode == "N-H Labeled") {
+      req(input$N,input$H)
+      elem <- tagList(
+        helpText("Enter the number of labeled atoms"),
+        fluidRow(
+          column(6,numericInput("label1","[15]N",value = input$N,min=0,max=input$N,step=1)),
+          column(6,numericInput("label2","D",value = input$H,min=0,max=input$H,step=1))
+        )
+      )
     }
     elem
   })
@@ -241,18 +250,25 @@ server <- function(input, output) {
     req(input$mode,input$label1,input$label2)
     if (input$mode == "C-N Labeled") {
       if (input$label1 == 0) {
-        temp <- "C"
+        temp <- "[13]C"
       } else if (input$label2 == 0) {
-        temp <- "N"
+        temp <- "[15]N"
       } else {
         temp <- NA
       }
     } else if (input$mode == "C-H Labeled") {
-      req(input$c13,input$d)
       if (input$label1 == 0) {
-        temp <- "C"
+        temp <- "[13]C"
       } else if (input$label2 == 0) {
-        temp <- "H"
+        temp <- "D"
+      } else {
+        temp <- NA
+      }
+    } else if (input$mode == "N-H Labeled") {
+      if (input$label1 == 0) {
+        temp <- "[15]N"
+      } else if (input$label2 == 0) {
+        temp <- "D"
       } else {
         temp <- NA
       }
@@ -260,9 +276,9 @@ server <- function(input, output) {
     return(temp)
   })
   
-  output$test <- renderText({
-    input$label2
-  })
+  # output$test <- renderText({
+  #   input$label2
+  # })
 
   # Generate reactive plot options
   pol <- reactive({
@@ -280,6 +296,8 @@ server <- function(input, output) {
     mzs <- get_mz_cn(C=input$C,N=input$N,H=input$H,O=input$O,S=input$S,c13=input$label1,n15=input$label2,pol=pol())
     } else if (input$mode == "C-H Labeled") {
       mzs <- get_mz_ch(C=input$C,N=input$N,H=input$H,O=input$O,S=input$S,c13=input$label1,d=input$label2,pol=pol())
+    } else if (input$mode == "N-H Labeled") {
+      mzs <- get_mz_nh(C=input$C,N=input$N,H=input$H,O=input$O,S=input$S,n15=input$label1,d=input$label2,pol=pol())
     }
 
     return(mzs)
