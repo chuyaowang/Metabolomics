@@ -3,7 +3,7 @@ get_mz_cn <- function(C,N,H,O,S,c13,n15,pol) {
   # specify the number of c, n, h, o, s atoms
   # specify polarity for +1 charge or -1 charge
   
-  m.c12 <- 12
+  m.c12 <- 12.000000
   m.c13 <- 13.003355
   m.h <- 1.007825
   m.n14 <- 14.003074
@@ -38,6 +38,43 @@ get_mz_cn <- function(C,N,H,O,S,c13,n15,pol) {
   colnames(mz) <- paste("[13]C",C:0,sep = "")
   
   mz <- mz[(N-n15+1):nrow(mz),(C-c13+1):ncol(mz)]
+  return(mz)
+}
+
+get_mz_ch <- function(C,N,H,O,S,c13,d,pol) {
+  m.c12 <- 12.000000
+  m.c13 <- 13.003355
+  m.h <- 1.007825
+  m.d <- 2.014102
+  m.n14 <- 14.003074
+  m.o16 <- 15.994915
+  m.s32 <- 31.972071
+  m.p <- 1.00727646677 # ex mass of proton
+  
+  b <- c(m.c12,m.c13,m.h,m.d,m.n14,m.o16,m.s32)
+  
+  a <- matrix(
+    c(
+      rep(0:C,each=H+1),
+      rep(C:0,each=H+1),
+      rep(0:H,times=C+1),
+      rep(H:0,times=C+1),
+      rep(N,times=(C+1)*(H+1)),
+      rep(O,times=(C+1)*(H+1)),
+      rep(S,times=(C+1)*(H+1))
+    ),
+    ncol = length(b)
+  )
+  
+  mz <- (a %*% b + pol*m.p) %>%
+    matrix(nrow = H+1, ncol = C+1) %>%
+    as.data.frame(
+      row.names = paste("D",H:0,sep = "")
+    )
+  
+  colnames(mz) <- paste("[13]C",C:0,sep = "")
+  
+  mz <- mz[(H-d+1):nrow(mz),(C-c13+1):ncol(mz)]
   return(mz)
 }
 
@@ -81,6 +118,10 @@ get_abundance <- function(data, ppm, rt_range, bg_range, mzs, multiplier, backgr
     })
   })
   mzs_vec <- as.vector(as.matrix(mzs))
+  # Always [13]C (for now)
+  label1 <- colnames(mzs) %>% str_remove(.,"(?<!\\[)[:digit:]+(?!\\])") %>% unique
+  # Either D or [15]N
+  label2 <- rownames(mzs) %>% str_remove(.,"(?<!\\[)[:digit:]+(?!\\])") %>% unique
   
   # Get intensities -----
   mz_int <- future_lapply(seq_along(fileNames(data)), function(f) {
@@ -168,12 +209,14 @@ get_abundance <- function(data, ppm, rt_range, bg_range, mzs, multiplier, backgr
     sep = "_"
   )
   
+  # From here on C represents # of [13]C, and N represents # of [15]N OR D
   C <- ncol(mzs) - 1
   N <- nrow(mzs) - 1
   
+  # unlabeled is C or H or N or NA
   if (!is.na(unlabeled) & unlabeled == "C") {
     C <- 0
-  } else if (!is.na(unlabeled) & unlabeled == "N") {
+  } else if (!is.na(unlabeled) & unlabeled != "C") {
     N <- 0
   }
   
@@ -183,7 +226,7 @@ get_abundance <- function(data, ppm, rt_range, bg_range, mzs, multiplier, backgr
              apply(.,MARGIN = 1,sum)
     )
   
-  if ((unlabeled == "N")|is.na(unlabeled)) {
+  if ((unlabeled != "C")|is.na(unlabeled)) {
     out <- out %>%
       mutate(c13Abundance = sapply(seq_along(label), function(x) {
         a <- out %>%
@@ -195,6 +238,7 @@ get_abundance <- function(data, ppm, rt_range, bg_range, mzs, multiplier, backgr
         `/`(C*total)
       ) %>%
       select(c13Abundance,everything())
+    colnames(out)[1] <- paste(label1,"Abundance") 
   }
   
   if ((unlabeled == "C")|is.na(unlabeled)) {
@@ -209,6 +253,7 @@ get_abundance <- function(data, ppm, rt_range, bg_range, mzs, multiplier, backgr
         `/`(N*total)
       ) %>%
       select(n15Abundance,everything())
+    colnames(out)[1] <- paste(label2,"Abundance") 
   }
   
   if (is.na(unlabeled)) {
@@ -225,6 +270,7 @@ get_abundance <- function(data, ppm, rt_range, bg_range, mzs, multiplier, backgr
         `/` ((N+C)*total)
       ) %>%
       select(allAbundance,everything())
+    colnames(out)[1] <- paste("All","Abundance") 
   }
   return(out)
 }

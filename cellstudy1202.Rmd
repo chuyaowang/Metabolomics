@@ -68,6 +68,7 @@ data.new$Name[which(is.na(data.new$Name))] <- paste("Unknown",seq_along(which(is
 
 ```{r}
 # Transpose and process
+data.new <- data.new[which(!str_detect(data.new$Name,"Unknown")),]
 areas.out <- data.new %>% select(colnames(data.new)[str_detect(colnames(data.new),"Area")]) %>% t %>% as.data.frame
 colnames(areas.out) <- data.new$Name
 areas.out <- mutate(areas.out, grp = rownames(areas.out) %>% str_split_fixed(.,"_",3) %>% `[`(,3)) %>%

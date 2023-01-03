@@ -3,7 +3,16 @@ library(dplyr)
 library(openxlsx)
 library(stringr)
 
-data <- read.xlsx("./data/features.xlsx") 
+data.pos <- read.xlsx("./data/features1.xlsx") 
+data.neg <- read.xlsx("./data/features1_neg.xlsx")
+data.pos <- data.pos %>%
+  `[`(,!str_detect(colnames(.),"Blank")) %>%
+  `[`(,!str_detect(colnames(.),"QC"))
+data.neg <- data.neg %>%
+  `[`(,!str_detect(colnames(.),"Blank")) %>%
+  `[`(,!str_detect(colnames(.),"QC"))
+
+
 data <- data %>%
   select(Name, colnames(data) %>% 
            `[`(str_detect(.,"Norm..Area")) %>%
