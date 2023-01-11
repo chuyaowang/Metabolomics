@@ -1,35 +1,84 @@
-## Data handling -----
 library(dplyr)
 library(openxlsx)
 library(stringr)
-
+## Data handling -----
+# Read data and clean up
 data.pos <- read.xlsx("./data/features1.xlsx") 
 data.neg <- read.xlsx("./data/features1_neg.xlsx")
-data.pos <- data.pos %>%
-  `[`(,!str_detect(colnames(.),"Blank")) %>%
-  `[`(,!str_detect(colnames(.),"QC"))
-data.neg <- data.neg %>%
-  `[`(,!str_detect(colnames(.),"Blank")) %>%
-  `[`(,!str_detect(colnames(.),"QC"))
+data <- list(data.pos,data.neg) %>%
+  lapply(.,function(x){
+    x <- x %>%
+      `[`(,!str_detect(colnames(.),"Blank")) %>%
+      `[`(,!str_detect(colnames(.),"QC"))
+    
+    colnames(x)[str_detect(colnames(x),"Area")] <- colnames(x)[str_detect(colnames(x),"Area")] %>% str_remove(.,".raw.") %>% str_remove(.,"\\(F[:digit:]+\\)") %>% str_remove(.,"Sample_All_FS_") %>% str_replace(.,"\\..","\\_") %>% str_remove(.,"\\.") %>% str_remove(.,"_[:digit:]+")
+    
+    x <- x %>% 
+      mutate(mode = colnames(x)[str_detect(colnames(x),"Area")] %>%
+               str_sub(-3) %>%
+               unique %>%
+               rep(.,nrow(x)))
+    
+    colnames(x)[str_detect(colnames(x),"Area")] <- colnames(x)[str_detect(colnames(x),"Area")] %>% str_sub(.,end=-5)
 
+    return(x)
+  })
 
-data <- data %>%
-  select(Name, colnames(data) %>% 
-           `[`(str_detect(.,"Norm..Area")) %>%
-           `[`(str_detect(.,"Sample"))) 
-data <- data %>%
-  `[`(!is.na(data[,2]),)
-rownames(data) <- data$Name
-data <- data %>% 
-  select(!Name)
-colnames(data) <- colnames(data) %>%
-  str_extract_all(.,"(?<=:.)[:graph:]+(?=_Sample)")
-data <- t(data) %>%
-  as.data.frame
-class <- rownames(data) %>%
-           str_extract(.,"(?<=)[:alnum:]+(?=-)")
-class[3] <- "SH3"
-class <- as.factor(class)
+# Merge pos and neg data
+common.colname <- data %>% lapply(.,colnames) %>% unlist %>% table %>% as.data.frame() %>% `[`(.$Freq>1,) %>% `[`(,1) %>% as.vector()
+
+data <- data %>% lapply(.,function(x){
+  x %>% select(all_of(common.colname))
+}) %>%
+  bind_rows
+  
+# Remove duplicates
+duped <- data$Formula %>% table %>% as.data.frame() %>% `[`(.$Freq>1,) %>% `[`(,1) %>% as.vector()
+for (i in duped) {
+  idx <- which(data$Formula %in% i)
+  newrow <- data[c(idx),] %>%
+    select(colnames(data)[str_detect(colnames(data),"Area")]) %>%
+    sapply(.,max)
+  for (j in idx) {
+    data[j,which(str_detect(colnames(data),"Area"))] <- newrow
+  }
+  data$Name[idx[-1]] <- "dup"
+}
+data <- data %>% filter((Name != "dup")|(is.na(Name)))
+
+# Give NA names an ID
+data$Name[which(is.na(data$Name))] <- paste("Unknown",seq_along(which(is.na(data$Name))),sep="_")
+
+# Transpose and output
+data<- data[which(!str_detect(data$Name,"Unknown")),]
+areas.out <- data %>% select(colnames(data)[str_detect(colnames(data),"Area")]) %>% t %>% scale %>% as.data.frame
+colnames(areas.out) <- data$Name
+rownames(areas.out) <- rownames(areas.out) %>% str_sub(.,start=11)
+areas.out <- areas.out %>%
+  mutate(grp = rownames(areas.out) %>%
+           str_remove(.,"\\-[:digit:]")) %>%
+  select(grp, everything())
+areas.out <- areas.out[2:nrow(areas.out),]
+dummy.row <- c("768O",sapply(areas.out %>% filter(grp=="768O") %>% select(!grp),mean))
+areas.out <- rbind(areas.out,dummy.row)
+write.csv(areas.out,"knockout.csv")
+
+## PCA -----
+library(mixOmics)
+library(viridis)
+res.pca <- pca(areas.out[,-1],center=F,scale=F,ncomp=5)
+plotIndiv(res.pca,
+          ind.names = T,
+          legend = T,
+          ellipse = T,
+          star = F,
+          group = areas.out$grp,
+          col.per.group = viridis(length(areas.out$grp %>% unique),begin=0.4,end=1),
+          title = "Scores Plot",
+          comp = c(1,3),
+          style = "ggplot2",
+          cex = 3,
+          lwd = 0.1)
 
 ## PLSDA -----
 library(mixOmics)

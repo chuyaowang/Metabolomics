@@ -104,7 +104,7 @@ ggbiplot(pca,
          groups = samplegroup, 
          ellipse = TRUE, 
          circle = TRUE, 
-         var.axes = T,
+         var.axes = F,
          varname.size = 1.5) +
   scale_color_discrete(name = '') +
   theme(legend.direction = 'horizontal', legend.position = 'top') +
