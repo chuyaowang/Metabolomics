@@ -1,0 +1,131 @@
+---
+title: "metDNA processing"
+author: "Chuyao Wang"
+date: "`r Sys.Date()`"
+output: 
+  html_document: 
+    number_sections: true # automatic section numbering
+    toc: yes # table of content
+    toc_depth: 3
+    toc_float: true
+    smooth_scroll: true
+    toc_collapsed: true
+    fig_caption: yes
+    df_print: kable
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding = encoding, output_dir = "./html") })
+---
+
+# Description
+
+Prepare the input table for metaboanalyst
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(stringr)
+library(gtools)
+library(dplyr)
+library(stringdist)
+strfil_colnames <- function(df,pattern) {
+  a <- colnames(df)[str_detect(colnames(df),pattern)]
+  return(a)
+}
+dir.anno.pos <- "~/Documents/metDNA/metDNA Output/cellsamples_4genes_pos/POS/00_annotation_table/table3_identification_pair.csv"
+dir.anno.neg <- "~/Documents/metDNA/metDNA Output/cellsamples_4genes_neg/00_annotation_table/table3_identification_pair.csv"
+dir.peak.pos <- "~/Documents/metDNA/data/pos/PeakTable.csv"
+dir.peak.neg <- "~/Documents/metDNA/data/neg/PeakTable.csv"
+```
+
+# Load data
+anno: annotated peaks from metDNA2
+
+peak: original peak table from xcms; missing values not imputed; contain areas for qc samples
+
+Since peak names can be similar across positive and negative peak tables. An "n" is appended before the peak names in negative mode peaks
+
+```{r}
+anno.pos <- read.csv(dir.anno.pos) %>%
+  mutate(peak_name2 = str_remove(peak_name,"_[:letter:]")) %>%
+  select(peak_name,peak_name2,everything())
+peak.pos <- read.csv(dir.peak.pos)
+colnames(anno.pos) <- colnames(anno.pos) %>% str_remove(.,"_Pos")
+colnames(peak.pos) <- colnames(peak.pos) %>% str_remove(.,"_Pos")
+
+anno.neg <- read.csv(dir.anno.neg) %>%
+  mutate(peak_name = str_c("n",peak_name)) %>%
+  mutate(peak_name2 = str_remove(peak_name,"_[:letter:]")) %>%
+  select(peak_name,peak_name2,everything())
+peak.neg <- read.csv(dir.peak.neg) %>%
+  mutate(name = str_c("n",name)) %>%
+  select(name,everything())
+colnames(anno.neg) <- colnames(anno.neg) %>% str_remove(.,"_Neg")
+colnames(peak.neg) <- colnames(peak.neg) %>% str_remove(.,"_Neg")
+```
+
+# Impute missing values with RF
+Impute the missing values in the peak table with random forest
+
+```{r}
+
+```
+
+
+# Perform SERRF QC correction
+Correct the peak areas using QC areas as reference
+
+# Remove duplicate annotations in the anno table
+The annotations should be filtered in the postive and negative modes combined.
+```{r}
+anno <- bind_rows(anno.pos,anno.neg)
+```
+
+First metabolites with duplicate names should be removed according to the name column in the anno table.
+```{r}
+not_max <- function(x) {
+  not.max <- which(x!=max(x))
+  return(not.max)
+}
+
+anno <- anno %>%
+  mutate(total.area = anno %>%
+           select(colnames(anno)[str_detect(colnames(anno),"FS")]) %>%
+           apply(.,MARGIN=1,sum))
+
+duped <- anno$name %>% table %>% as.data.frame() %>% `[`(.$Freq>1,) %>% `[`(,1) %>% as.vector()
+```
+
+Besides identical metabolites, stereoisomers, such as D-Leucine and L-Leucine should also be removed. This requires computing a distance matrix of the smiles names of the metabolites since smiles name also indicate structure. Structurally similar compounds will have a lower distance. The matrix can then be filtered given a cutoff.
+
+Many compounds have smiles name but not common name. So unique(smiles)>unique(name). It is also possible for a smile name to be related to multiple common names, since smile names refer to structures. There is also the case where a compound has multiple smiles name, such as creatine.
+
+```{r}
+anno <- bind_rows(anno.pos,anno.neg)
+# distmat <- stringdistmatrix(unique(anno$smiles), unique(anno$smiles), "jw", p=0.1)
+distmat <- readRDS("./outputs/distmat4metdna.rds")
+```
+
+
+```{r}
+
+```
+
+Use the distance matrix to filter
+
+
+
+# Filter out peaks with the same annotations
+Multiple peaks can have the same annotations because of different adducts or retention times. These are dependent variables and should be removed to only keep the most relevant one.
+
+
+# Data cleaning
+
+## Low intensity values (mean/median)
+
+## Constant values (sd/iqr)
+
+## High RSD in QC samples
+
+# Remove duplicate metabolites
+
+# Normalization
