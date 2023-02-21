@@ -2,15 +2,17 @@ library(dplyr)
 library(ggplot2)
 library(openxlsx)
 library(KEGGREST)
+library(stringr)
 
-. <- "./data/keggid.xlsx"
-keggid <- read.xlsx(.)
+. <- "mdv.csv"
+keggid <- read.csv(.)
 
 p_mass <- 1.00727646677 # exact mass of a proton
 
 keggquery <- keggid %>%
   mutate(queryTerm = paste("compound:",KEGG,sep="")) %>%
   select(queryTerm) %>%
+  filter(!str_detect(queryTerm,"NA")) %>%
   apply(.,1,keggGet)
 
 keggid <- keggid %>%  

@@ -557,7 +557,7 @@ plot(chromatogram(data_cent, mz = c(106.04, 106.06),
                   rt = c(179, 186))) 
 ```
 
-## Correspondence
+## Peak grouping
 
 ```{r correspondence-example, fig.cap = "BPC for a m/z slice and defined features within this slice based on default settings.", fig.width = 10, fig.height = 7}
 #' Get default parameters for the grouping
