@@ -1,0 +1,74 @@
+---
+title: "IPO"
+author: "Chuyao Wang"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(xcms)
+library(CAMERA)
+library(IPO)
+library(gtools)
+```
+
+## Load Data
+
+```{r}
+datadir <- "./rdata/20230209/"
+fls <- list.files(datadir,pattern="cent",all.files = TRUE,full.names = TRUE) %>%
+  mixedsort(.,decreasing = TRUE)
+```
+
+## Set IPO Settings
+
+```{r}
+params.ipo <- getDefaultXcmsSetStartingParams("centWave")
+params.ipo$min_peakwidth <- c(10,20)
+params.ipo$max_peakwidth <- c(50,70)
+params.ipo$ppm <- 5
+params.ipo$mzdiff <- -0.001
+params.ipo$snthresh <- 20
+params.ipo$noise <- 1e5
+params.ipo$prefilter <- 3
+params.ipo$value_of_prefilter <- c(1e5,1e6)
+params.ipo$mzCenterFun <- "wMeanApex3"
+params.ipo$integrate <- 1
+params.ipo$fitgauss <- FALSE
+params.ipo$verbose.columns <- FALSE
+```
+
+## Optimize Peak Picking
+
+```{r}
+resultPeakpicking <- optimizeXcmsSet(files = fls[3:4], 
+                                     params = params.ipo, 
+                                     isotopeIdentification = "IPO",
+                                     nSlaves = 30, 
+                                     BPPARAM = SerialParam(),
+                                     subdir = "IPO",
+                                     plot = TRUE)
+```
+## Get retcor optimize parameters
+```{r}
+params.retcor <- getDefaultRetGroupStartingParams()
+params.retcor$profStep <- c(0.1,0.2)
+params.retcor$gapExtend <- 2.7
+params.retcor$response <- c(5,20)
+params.retcor$bw <- c(5,20)
+params.retcor$mzwid <- c(0.001,0.01)
+```
+
+## Optimize retcor and grouping
+```{r}
+resultsRetcorgroup <- optimizeRetGroup(
+  xset = resultPeakpicking$best_settings$xset,
+  params = params.retcor,
+  nSlaves = 1,
+  subdir = "IPO",
+  plot = TRUE
+)
+```
+

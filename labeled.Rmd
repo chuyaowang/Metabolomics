@@ -1,0 +1,484 @@
+---
+title: "Find labeled"
+author: "Chuyao Wang"
+date: "`r Sys.Date()`"
+output: 
+  html_document: 
+    number_sections: true # automatic section numbering
+    toc: yes # table of content
+    toc_depth: 3
+    toc_float: true
+    smooth_scroll: true
+    toc_collapsed: true
+    fig_caption: yes
+    df_print: kable
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding = encoding, output_dir = "./html") })
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(xcms)
+# library(CAMERA)
+library(dplyr)
+library(stringr)
+library(RColorBrewer)
+library(pander)
+library(openxlsx)
+library(ggplot2)
+library(hrbrthemes)
+library(gtools)
+library(readr)
+source("isotopeApp/helpers.R")
+```
+
+```{r serial-setup}
+register(SerialParam())
+```
+
+# Data import
+
+```{r loadData}
+datadir <- "./data/20230208"
+file <- list.files(path = datadir, pattern = "^.*\\.mzXML$",
+                   all.files = TRUE, full.names = TRUE,
+                   recursive = FALSE, ignore.case = FALSE,
+                   include.dirs = FALSE, no.. = TRUE)
+pd <- data.frame(file = basename(file),
+                 sample = c("Sample1", "Sample2","Sample3",'Sample4'),
+                 group = c("6h","28h","49h","72h"))
+data <- readMSData(file, # filenames to load
+                   # Stores data; stores sample info into @phenoData@data
+                   # More info about each variable: file, injection. sample etc. can be entered in varMetadata
+                   pdata = new("NAnnotatedDataFrame", pd),
+                   mode = "onDisk" # Only load metadata into memory and leave the m/z ratio vs intensity peaks on disk
+) %>% filterMsLevel(1)
+```
+
+```{r viewData}
+# featureData <- fData(data)
+# 
+# polarity(data) %>% table
+# msLevel(data) %>% table
+```
+
+# Data centroiding
+
+```{r denoise-and-centroid, results='hide', warning=FALSE}
+# data_cent <- data %>%
+#       smooth(method = "SavitzkyGolay", halfWindowSize = 10) %>%
+#       #combineSpectraMovingWindow() %>%
+#       pickPeaks(refineMz = "descendPeak")
+# 
+# name <- fileNames(data) %>%
+#   str_remove(".mzXML") %>%
+#   paste("cent",sep = "_") %>%
+#   paste("mzML",sep = ".")
+# 
+# # lapply(name, function (z) {
+# #     if (file.exists(z))
+# #         file.remove(z)
+# # })
+# 
+# writeMSData(data_cent,file=name)
+
+```
+
+# Pre-processing
+
+## Read the centroided data
+
+```{r}
+datadir <- "./data/20230208"
+
+file <- list.files(path = datadir, pattern = "cent",
+                   all.files = TRUE, full.names = TRUE,
+                   recursive = FALSE, ignore.case = FALSE,
+                   include.dirs = FALSE, no.. = TRUE) %>%
+  mixedsort(decreasing = TRUE)
+
+pd <- data.frame(file = basename(file),
+                 sample = c("Sample1", "Sample2","Sample3",'Sample4'),
+                 group = c("6h","28h","49h","72h"))
+
+data_cent <- readMSData(file, pdata = new("NAnnotatedDataFrame", pd),
+                        mode = "onDisk")  
+```
+
+## Peak detection
+
+centwavewithprediso: do one centwave run, predict potential isotope positions, do another centwave in those positions
+
+centwave: identify roi first, then do cwt in those rois to find peaks.
+
+roi: region in the mz-rt space where consecutive mz values deviate less than ppm
+
+### Fine-tune parameters
+
+#### Peak width
+
+```{r}
+data_cent %>%
+  filterFile(1) %>%
+  filterMz(mz=get_ppm_range(179.056,5)) %>%
+  filterRt(rt=c(380,440)) %>%
+  plot(type="XIC")
+```
+
+> about 50s
+
+```{r}
+data_cent %>%
+  filterFile(1) %>%
+  filterMz(mz=get_ppm_range(173.1044,5)) %>%
+  filterRt(rt=c(800,900)) %>%
+  chromatogram %>%
+  plot
+```
+
+Also about 50s
+
+### Set parameters
+
+```{r}
+# params <- CentWavePredIsoParam(ppm = 10,
+#                                peakwidth = c(20,70),
+#                                snthresh = 30,
+#                                prefilter = c(3,7e5),
+#                                mzCenterFun = "wMeanApex3",
+#                                integrate = 2,
+#                                mzdiff = -0.001, # if negative allow overlap, if positive and <0.001, count as one peak, if >0.001, count as two peaks
+#                                noise = 3e5,
+#                                maxCharge = 1,
+#                                maxIso = 5,
+#                                polarity = "negative"
+# )
+
+params <- CentWaveParam(ppm = 5,
+                        peakwidth = c(3.786432,143),
+                        snthresh = 20,
+                        prefilter = c(3,70779.88),
+                        mzCenterFun = "wMeanApex3",
+                        integrate = 1,
+                        mzdiff = -0.001, # if negative allow overlap, if positive and <0.001, count as one peak, if >0.001, count as two peaks
+                        noise = 1e5
+
+)
+group_colors <- brewer.pal(length(fileNames(data_cent)),"Set2")
+```
+
+### Test parameters
+
+```{r, warning=FALSE}
+chr_glu <- chromatogram(data_cent, mz=get_ppm_range(185.0762,5),rt=c(380,450))
+plot(chr_glu, col=group_colors)
+```
+
+Test on XIC
+
+```{r}
+params.test <- params
+params.test@snthresh <- 2
+xchr <- findChromPeaks(chr_glu,params.test,BPPARAM=SerialParam())
+```
+
+```{r}
+plot(xchr,col=group_colors,peakBg=group_colors[chromPeaks(xchr)[, "column"]])
+```
+
+### Do peak picking
+
+```{r, warning=FALSE}
+xdata <- findChromPeaks(data_cent, param = params, return.type = "XCMSnExp",BPPARAM=SnowParam())
+xdata_og <- xdata
+```
+
+## Peak refinement
+
+### Peak merging
+
+> Reduced many peaks for predIsoparams method
+
+```{r warning=FALSE}
+mpp <- MergeNeighboringPeaksParam(expandRt = 2, expandMz=0, ppm = 5, minProp=0.75)
+xdata_mpp <- refineChromPeaks(xdata, param = mpp, BPPARAM=SerialParam())
+```
+
+### Get peak summaries
+
+```{r}
+xdata <- xdata_mpp
+```
+
+#### Summary table
+
+```{r}
+summary_fun <- function(z)
+    c(peak_count = nrow(z), rt = quantile(z[, "rtmax"] - z[, "rtmin"]))
+
+T <- lapply(split.data.frame(
+    chromPeaks(xdata), f = chromPeaks(xdata)[, "sample"]),
+    FUN = summary_fun)
+T <- do.call(rbind, T)
+rownames(T) <- basename(fileNames(xdata))
+pandoc.table(
+    T,
+    caption = paste0("Summary statistics on identified chromatographic",
+                     " peaks. Shown are number of identified peaks per",
+                     " sample and widths/duration of chromatographic ",
+                     "peaks."))
+```
+
+#### Location of peaks per file
+
+```{r}
+plotChromPeaks(xdata, file = 4)
+```
+
+#### Number of peaks along rt axis
+
+```{r}
+plotChromPeakImage(xdata,yaxt = "n")
+```
+
+#### Peak intensities per file
+
+```{r}
+ints <- split(log2(chromPeaks(xdata)[, "into"]),
+              f = chromPeaks(xdata)[, "sample"])
+boxplot(ints, varwidth = TRUE, col = group_colors[xdata$sample_group],
+        ylab = expression(log[2]~intensity), main = "Peak intensities")
+grid(nx = NA, ny = NULL)
+```
+
+## Retention time correction
+
+```{r}
+register(SerialParam())
+xdata <- xdata_mpp
+xdata_rt <- adjustRtime(xdata, param = ObiwarpParam(
+  gapInit = 0,
+  gapExtend = 2.7,
+  factorDiag = 2,
+  factorGap = 1,
+  localAlignment = FALSE,
+  binSize = 0.18, # profStep in retcor
+  response=19.25,
+  distFun = "cor_opt"
+  ))
+```
+
+```{r}
+par(mfrow = c(2,1))
+
+chr_glu_before <- chromatogram(xdata_mpp,mz=get_ppm_range(185.0762,5),rt=c(380,420))
+plot(chr_glu_before, col=group_colors, peakType="none")
+chr_glu_after <- chromatogram(xdata_rt,mz=get_ppm_range(185.0762,5),rt=c(380,420))
+plot(chr_glu_after,col=group_colors,peakType="none")
+```
+
+## Peak grouping
+
+```{r}
+xdata <- xdata_rt
+```
+
+### Test parameters
+
+Group similar peaks in each file into a feature
+
+```{r}
+## Define the mz slice.
+mzr <- get_ppm_range(185.0762,5)
+
+## Extract and plot the chromatograms
+chr_mzr <- chromatogram(xdata, mz = mzr,rt=c(380,440))
+## Define the parameters for the peak density method
+pdp <- PeakDensityParam(sampleGroups = c(1,1,1,1),
+                        bw = 5, # adjust according to result
+                        minFraction = 0.5,
+                        minSamples = 2, 
+                        binSize = 0.00415, #mzwid
+                        maxFeatures = 50
+                        )
+plotChromPeakDensity(chr_mzr, col = group_colors, param = pdp,
+                     peakBg = group_colors,
+                     peakCol = group_colors,
+                     peakPch = 16)
+```
+
+All glucose peaks are grouped into one feature
+
+### Do peak grouping
+
+```{r}
+register(SerialParam())
+xdata_gpk <- groupChromPeaks(xdata, param = pdp)
+```
+
+## Peak filling
+
+Fill in missing peaks from each feature
+
+```{r}
+xdata <- xdata_gpk
+```
+
+```{r}
+register(SerialParam())
+xdata_fill <- fillChromPeaks(xdata, param = ChromPeakAreaParam())
+```
+
+# Targeted search
+
+## Extract peaklist
+
+```{r}
+xdata <- xdata_fill
+peaklist <- chromPeaks(xdata) %>% as.data.frame
+```
+
+## Read metabolites table
+
+```{r}
+compounds <- read.xlsx("data/metabolites.xlsx",sheet=1,startRow = 1)
+elements <- c("C","H","N","O","P","S")
+count <- matrix(nrow=length(compounds$Formula),ncol = length(elements)) %>% as.data.frame
+for (i in seq_along(elements)) {
+  element_notexist <- str_extract(compounds$Formula,elements[i]) %>% is.na
+  element_number <- str_extract(compounds$Formula,paste(elements[i],"\\d+",sep="")) %>%
+    str_extract(.,"\\d+") %>%
+    as.numeric()
+  element_number[element_notexist] <- 0
+  element_number[is.na(element_number)] <- 1
+  
+  count[,i] <- element_number
+}
+colnames(count) <- elements
+
+count <- mutate(count, ion_formula_neg = paste("C",C,"H",H-1,"N",N,"O",O,"P",P,"S",S,sep="")) # change to H+1 for positive mode
+for (i in seq_along(count$ion_formula_neg)) {
+  vec <- str_extract_all(count$ion_formula_neg[i],"\\D?\\d+") %>% unlist 
+  vec[str_detect(vec,"^\\D?0$")] <- ""
+  vec[str_detect(vec,"^\\D?1$")] <- str_remove(vec[str_detect(vec,"^\\D?1$")],"1")
+  count$ion_formula_neg[i] <- str_flatten(vec)
+}
+compounds <- bind_cols(compounds, count)
+```
+
+## Filter for mz values
+
+```{r}
+abbs <- compounds$Abbreviation
+isocor <- data.frame()
+
+mdv <- matrix(nrow = length(compounds$Name),ncol=length(unique(peaklist$sample))) %>%
+  as.data.frame
+
+for (spl in unique(peaklist$sample)) {
+  for (cpd_idx in seq_along(compounds$Name)) {
+    row <- compounds[cpd_idx,]
+    mzs <- get_mz_ch(C=row$C,
+                     N=row$N,
+                     H=row$H,
+                     S=row$S,
+                     O=row$O,
+                     P=row$P,
+                     c13=row$C,
+                     d=0,
+                     pol=-1) %>% unlist
+    
+    areas <- c() # stores area for each mz value
+    for (mz_idx in seq_along(mzs)) {
+      temp <- peaklist %>%
+        filter(sample == spl) %>% 
+        filter(abs(mz-mzs[mz_idx])<0.001) %>% 
+        select(into) %>%
+        unlist
+      temp <- c(temp,0)
+      areas[mz_idx] <- max(temp,na.rm = TRUE)
+    }
+    
+    if (sum(areas)==0) {
+      mdv[cpd_idx,spl] <- rep(0,times=compounds$C[cpd_idx]) %>% as.character() %>% str_flatten(.,collapse = " ")
+    } else {
+      mdv[cpd_idx,spl] <- (areas/sum(areas)) %>% round(.,digits=4) %>% as.character() %>% str_flatten(.,collapse = " ") 
+      
+      isocor.sample <- rep(paste("Sample_",spl),times=length(areas))
+      isocor.metabolite <- rep(abbs[cpd_idx],times=length(areas))
+      isocor.derivative <- rep(NA,times=length(areas))
+      isocor.isotopologue <- (length(areas)-1):0
+      isocor.area <- areas
+      isocor.resolution <- rep(120000,length(areas))
+      
+      isocor.add <- data.frame(isocor.sample,isocor.metabolite,isocor.derivative,isocor.isotopologue,isocor.area,isocor.resolution)
+      
+      isocor <- bind_rows(isocor,isocor.add)
+    }
+  }
+}
+colnames(mdv) <-  fileNames(xdata_fill) %>% basename
+compounds <- bind_cols(compounds,mdv)
+
+colnames(isocor) <- c("sample","metabolite","derivative","isotopologue","area","resolution")
+```
+
+## Make metabolite.dat
+
+```{r}
+metdat <- compounds %>% 
+  select(Abbreviation, ion_formula_neg) %>% 
+  mutate(charge=rep(-1,length(Abbreviation))) %>% 
+  mutate(inchi=rep(NA,length(Abbreviation)))
+colnames(metdat)[1:2] <- c("name","formula")
+```
+
+## Save data
+
+```{r}
+write_csv(compounds,"output/mdv1.csv",na="")
+write_tsv(isocor,"output/isocordata.tsv",na="")
+write_tsv(metdat,"output/Metabolites.dat",na="",quote = "none")
+```
+
+# Data format conversion
+
+```{r}
+# data_set <- as(xdata_fill,"xcmsSet")
+```
+
+> sampclass is a method to add or adjust the class column in the phenoData slot of a xcmsSet object
+
+# Isotope analysis
+
+intb: baseline corrected area into: area maxo: peak intensity
+
+```{r}
+an <- xsAnnotate(data_set, polarity="negative") # constructor; extracts peak table
+an <- groupFWHM(an, perfwhm = 10,intval = "maxo") # group peaks by retention time
+an <- findIsotopes(an,
+                    ppm=15,
+                    mzabs=0.1,
+                    intval="maxo",
+                    maxcharge = 1,
+                    maxiso=8,
+                    filter=TRUE)
+an <- groupCorr(an,cor_eic_th=0.5,pval=0.1)
+an <- findIsotopes(an,
+                    ppm=5,
+                    mzabs=0.001,
+                    intval="maxo",
+                    maxcharge = 1,
+                    maxiso=8,
+                    filter=TRUE)
+an <- findAdducts(an,ppm=5,mzabs=0.001,multiplier=2,polarity = "negative",intval="maxo")
+```
+
+## Get result
+
+```{r}
+peaklist <- getPeaklist(an) # extract peak list
+```
+
+do peak merging annotation
