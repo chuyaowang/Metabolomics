@@ -39,3 +39,19 @@ conc.glu <- predict(model.glu,
         filter(isotopologue == 0) %>% 
         select(isotopologue_fraction) %>% 
         unlist)
+
+num.0 <- 6.9e7 # cells
+num.72 <- 3.7e8
+conc.glu.0 <- 0 # g/mL
+conc.glu.72 <- conc.glu*10^-1
+conc.glc.0 <- 0.12
+# conc.glc.72 <- conc.glc*10^-4
+conc.glc.72 <- 0.067 # measured value
+t1 <- 0 # hour
+t2 <- 72
+molarmass.glc <- 180.156 # g/mol
+molarmass.glu <- 143.17 
+
+growthrate <- (log(num.72) - log(num.0))/(t2-t1) # per hour
+glucoseconsumption <- growthrate*10*(conc.glc.72-conc.glc.0)*(1/molarmass.glc)*1e9/((num.72-num.0)*1e-6) # nmol/1e6 cells/hour
+glutamateproduction <- growthrate*10*(conc.glu.72-conc.glu.0)*(1/molarmass.glu)*1e9/((num.72-num.0)*1e-6)
