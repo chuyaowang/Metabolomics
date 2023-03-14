@@ -43,7 +43,7 @@ conc.glu <- predict(model.glu,
 num.0 <- 6.9e7 # cells
 num.72 <- 3.7e8
 conc.glu.0 <- 0 # g/mL
-conc.glu.72 <- conc.glu*10^-1
+conc.glu.72 <- conc.glu*10^-4
 conc.glc.0 <- 0.12
 # conc.glc.72 <- conc.glc*10^-4
 conc.glc.72 <- 0.067 # measured value
