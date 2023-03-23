@@ -40,18 +40,19 @@ register(SerialParam())
 # Data import
 
 ```{r loadData}
-datadir <- "./data/20230208"
-file <- list.files(path = datadir, pattern = "^.*\\.mzXML$",
+datadir <- "./data/20230228"
+file <- list.files(path = datadir, pattern = "^.*\\.mzML$",
                    all.files = TRUE, full.names = TRUE,
                    recursive = FALSE, ignore.case = FALSE,
-                   include.dirs = FALSE, no.. = TRUE)
+                   include.dirs = FALSE, no.. = TRUE) %>%
+  mixedsort(decreasing=T)
 pd <- data.frame(file = basename(file),
-                 sample = c("Sample1", "Sample2","Sample3",'Sample4'),
-                 group = c("6h","28h","49h","72h"))
+                 sample = c("Sample1","Sample2"),
+                 group = c("SQ","JN"))
 data <- readMSData(file, # filenames to load
                    # Stores data; stores sample info into @phenoData@data
                    # More info about each variable: file, injection. sample etc. can be entered in varMetadata
-                   pdata = new("NAnnotatedDataFrame", pd),
+                   # pdata = new("NAnnotatedDataFrame", pd),
                    mode = "onDisk" # Only load metadata into memory and leave the m/z ratio vs intensity peaks on disk
 ) %>% filterMsLevel(1)
 ```
@@ -66,22 +67,22 @@ data <- readMSData(file, # filenames to load
 # Data centroiding
 
 ```{r denoise-and-centroid, results='hide', warning=FALSE}
-# data_cent <- data %>%
-#       smooth(method = "SavitzkyGolay", halfWindowSize = 10) %>%
-#       #combineSpectraMovingWindow() %>%
-#       pickPeaks(refineMz = "descendPeak")
-# 
-# name <- fileNames(data) %>%
-#   str_remove(".mzXML") %>%
-#   paste("cent",sep = "_") %>%
-#   paste("mzML",sep = ".")
-# 
-# # lapply(name, function (z) {
-# #     if (file.exists(z))
-# #         file.remove(z)
-# # })
-# 
-# writeMSData(data_cent,file=name)
+data_cent <- data %>%
+      smooth(method = "SavitzkyGolay", halfWindowSize = 10) %>%
+      #combineSpectraMovingWindow() %>%
+      pickPeaks(refineMz = "descendPeak") 
+
+name <- fileNames(data) %>%
+  str_remove(".mzML") %>%
+  paste("cent",sep = "_") %>%
+  paste("mzML",sep = ".")
+
+# lapply(name, function (z) {
+#     if (file.exists(z))
+#         file.remove(z)
+# })
+
+writeMSData(data_cent,file=name)
 
 ```
 
@@ -90,17 +91,18 @@ data <- readMSData(file, # filenames to load
 ## Read the centroided data
 
 ```{r}
-datadir <- "./data/20230208"
+datadir <- "./data/20230228"
 
 file <- list.files(path = datadir, pattern = "cent",
                    all.files = TRUE, full.names = TRUE,
                    recursive = FALSE, ignore.case = FALSE,
                    include.dirs = FALSE, no.. = TRUE) %>%
-  mixedsort(decreasing = TRUE)
+  mixedsort(decreasing = TRUE) %>% 
+  `[`(1:2)
 
 pd <- data.frame(file = basename(file),
-                 sample = c("Sample1", "Sample2","Sample3",'Sample4'),
-                 group = c("6h","28h","49h","72h"))
+                 sample = c("Sample1","Sample2"),
+                 group = c("SQ","JN"))
 
 data_cent <- readMSData(file, pdata = new("NAnnotatedDataFrame", pd),
                         mode = "onDisk")  
@@ -118,26 +120,26 @@ roi: region in the mz-rt space where consecutive mz values deviate less than ppm
 
 #### Peak width
 
-```{r}
-data_cent %>%
-  filterFile(1) %>%
-  filterMz(mz=get_ppm_range(179.056,5)) %>%
-  filterRt(rt=c(380,440)) %>%
+```{r, warning=F}
+data %>%
+  filterFile(2) %>%
+  filterMz(mz=get_ppm_range(90.05496,10)) %>%
+  filterRt(rt=c(390,420)) %>%
   plot(type="XIC")
 ```
 
 > about 50s
 
-```{r}
+```{r, warning=F}
 data_cent %>%
-  filterFile(1) %>%
-  filterMz(mz=get_ppm_range(173.1044,5)) %>%
-  filterRt(rt=c(800,900)) %>%
-  chromatogram %>%
+  filterFile(2) %>%
+  filterMz(mz=get_ppm_range(90.05496,5)) %>%
+  filterRt(rt=c(390,420)) %>%
+  chromatogram(missing=0) %>%
   plot
 ```
 
-Also about 50s
+1 min, 40s
 
 ### Set parameters
 
@@ -156,13 +158,13 @@ Also about 50s
 # )
 
 params <- CentWaveParam(ppm = 5,
-                        peakwidth = c(3.786432,143),
-                        snthresh = 20,
-                        prefilter = c(3,70779.88),
+                        peakwidth = c(3,310),
+                        snthresh = 10,
+                        prefilter = c(3,1),
                         mzCenterFun = "wMeanApex3",
                         integrate = 1,
                         mzdiff = -0.001, # if negative allow overlap, if positive and <0.001, count as one peak, if >0.001, count as two peaks
-                        noise = 1e5
+                        noise = 10000
 
 )
 group_colors <- brewer.pal(length(fileNames(data_cent)),"Set2")
@@ -171,7 +173,11 @@ group_colors <- brewer.pal(length(fileNames(data_cent)),"Set2")
 ### Test parameters
 
 ```{r, warning=FALSE}
-chr_glu <- chromatogram(data_cent, mz=get_ppm_range(185.0762,5),rt=c(380,450))
+chr_glu <- data_cent %>%
+  filterFile(2) %>%
+  filterMz(mz=get_ppm_range(90.05496,5)) %>%
+  filterRt(rt=c(390,420)) %>%
+  chromatogram(missing=0)
 plot(chr_glu, col=group_colors)
 ```
 
@@ -232,8 +238,8 @@ pandoc.table(
 
 #### Location of peaks per file
 
-```{r}
-plotChromPeaks(xdata, file = 4)
+```{r, warning=F}
+plotChromPeaks(xdata, file =2)
 ```
 
 #### Number of peaks along rt axis
@@ -245,7 +251,7 @@ plotChromPeakImage(xdata,yaxt = "n")
 #### Peak intensities per file
 
 ```{r}
-ints <- split(log2(chromPeaks(xdata)[, "into"]),
+ints <- split(log2(chromPeaks(xdata)[, "maxo"]),
               f = chromPeaks(xdata)[, "sample"])
 boxplot(ints, varwidth = TRUE, col = group_colors[xdata$sample_group],
         ylab = expression(log[2]~intensity), main = "Peak intensities")
@@ -335,14 +341,15 @@ xdata_fill <- fillChromPeaks(xdata, param = ChromPeakAreaParam())
 ## Extract peaklist
 
 ```{r}
-xdata <- xdata_fill
+xdata <- xdata_mpp
 peaklist <- chromPeaks(xdata) %>% as.data.frame
 ```
 
 ## Read metabolites table
 
 ```{r}
-compounds <- read.xlsx("data/metabolites.xlsx",sheet=1,startRow = 1)
+compounds <- read.xlsx("data/metabolites_neg.xlsx",sheet=1,startRow = 1)
+#compounds <- read.xlsx("data/metabolites_pos.xlsx",sheet=1,startRow = 1)
 elements <- c("C","H","N","O","P","S")
 count <- matrix(nrow=length(compounds$Formula),ncol = length(elements)) %>% as.data.frame
 for (i in seq_along(elements)) {
@@ -357,12 +364,12 @@ for (i in seq_along(elements)) {
 }
 colnames(count) <- elements
 
-count <- mutate(count, ion_formula_neg = paste("C",C,"H",H-1,"N",N,"O",O,"P",P,"S",S,sep="")) # change to H+1 for positive mode
-for (i in seq_along(count$ion_formula_neg)) {
-  vec <- str_extract_all(count$ion_formula_neg[i],"\\D?\\d+") %>% unlist 
+count <- mutate(count, ion_formula = paste("C",C,"H",H-1,"N",N,"O",O,"P",P,"S",S,sep="")) # change to H+1 for positive mode
+for (i in seq_along(count$ion_formula)) {
+  vec <- str_extract_all(count$ion_formula[i],"\\D?\\d+") %>% unlist 
   vec[str_detect(vec,"^\\D?0$")] <- ""
   vec[str_detect(vec,"^\\D?1$")] <- str_remove(vec[str_detect(vec,"^\\D?1$")],"1")
-  count$ion_formula_neg[i] <- str_flatten(vec)
+  count$ion_formula[i] <- str_flatten(vec)
 }
 compounds <- bind_cols(compounds, count)
 ```
@@ -387,7 +394,8 @@ for (spl in unique(peaklist$sample)) {
                      P=row$P,
                      c13=row$C,
                      d=0,
-                     pol=-1) %>% unlist
+                     pol=1 ) %>% # -1 for neg mode
+      unlist
     
     areas <- c() # stores area for each mz value
     for (mz_idx in seq_along(mzs)) {
@@ -418,7 +426,7 @@ for (spl in unique(peaklist$sample)) {
     }
   }
 }
-colnames(mdv) <-  fileNames(xdata_fill) %>% basename
+colnames(mdv) <-  fileNames(xdata) %>% basename
 compounds <- bind_cols(compounds,mdv)
 
 colnames(isocor) <- c("sample","metabolite","derivative","isotopologue","area","resolution")
@@ -428,8 +436,8 @@ colnames(isocor) <- c("sample","metabolite","derivative","isotopologue","area","
 
 ```{r}
 metdat <- compounds %>% 
-  select(Abbreviation, ion_formula_neg) %>% 
-  mutate(charge=rep(-1,length(Abbreviation))) %>% 
+  select(Abbreviation, ion_formula) %>% 
+  mutate(charge=rep(1,length(Abbreviation))) %>% 
   mutate(inchi=rep(NA,length(Abbreviation)))
 colnames(metdat)[1:2] <- c("name","formula")
 ```
@@ -437,9 +445,28 @@ colnames(metdat)[1:2] <- c("name","formula")
 ## Save data
 
 ```{r}
-write_csv(compounds,"output/mdv1.csv",na="")
-write_tsv(isocor,"output/isocordata.tsv",na="")
+write_csv(compounds,"output/mdv0228_pos2.csv",na="")
+write_tsv(isocor,"output/isocordata0228_pos2.tsv",na="")
 write_tsv(metdat,"output/Metabolites.dat",na="",quote = "none")
+```
+
+## Process result
+
+```{r}
+res <- read_tsv("D:/Files/SH/isocor/0228_pos2/isocordata0228_pos2_res.tsv")
+res <- res %>%
+  filter(sample=="Sample_ 2") %>% 
+  select(metabolite,isotopologue_fraction) %>% 
+  mutate(error = rep(0.02,times=nrow(.))) %>% 
+  split.data.frame(.,.$metabolite)
+
+add <- data.frame(metabolite="",isotopologue_fraction=as.integer(0),error=as.numeric(""))
+res_new <- data.frame()
+for (i in 1:length(res)) {
+  res_new <- bind_rows(res_new,add,res[[i]])
+}
+
+write_csv(res_new,"D:/Files/SH/isocor/0228_pos2/res_processed_pos2.csv",na="")
 ```
 
 # Data format conversion
