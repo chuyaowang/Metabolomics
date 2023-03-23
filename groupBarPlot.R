@@ -5,13 +5,13 @@ library(hrbrthemes)
 library(viridis)
 library(ggrepel)
 
-featPerFile <- read.xlsx("data/20230307/cellsneg_features.xlsx")
+featPerFile <- read.xlsx("data/20230307/cellspos_features.xlsx")
 featPerFile <- featPerFile %>% group_by(Study.File.ID) %>% summarise(feats=length(Molecular.Weight),avgArea=mean(Area))
 
-cpdPerFile <- read.xlsx("data/20230307/cellsneg_compounds.xlsx")
+cpdPerFile <- read.xlsx("data/20230307/cellspos_compounds.xlsx")
 cpdPerFile <- cpdPerFile %>% group_by(Study.File.ID) %>% summarise(cpds=length(Calc..MW),meanInt=mean(`Intensity.(Max.)`))
 
-files <- read.xlsx("data/20230307/cellsneg_files.xlsx")
+files <- read.xlsx("data/20230307/cellspos_files.xlsx")
 files <- left_join(files,featPerFile,by=c("ID"="Study.File.ID"))
 files <- left_join(files,cpdPerFile,by=c("ID"="Study.File.ID"))
 
@@ -25,6 +25,6 @@ ggplot(files.extraction.solvent,aes(fill=Solvent,y=cpds,x=Extraction.method,colo
 
 ggplot(files.extraction.solvent,aes(x=cpds,y=meanInt,color=Solvent)) +
   geom_point() +
-  geom_text_repel(aes(label = Extraction.method),hjust=0,vjust=1.4,size=3,show.legend = FALSE) +
+  geom_text_repel(aes(label = Extraction.method),hjust=0,vjust=1.4,size=4,show.legend = FALSE) +
   theme_minimal() +
   scale_color_viridis(option="A",discrete=TRUE,begin=0.2,end=0.8)

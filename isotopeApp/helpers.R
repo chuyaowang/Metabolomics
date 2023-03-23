@@ -1,4 +1,4 @@
-get_mz_cn <- function(C,N=0,H,O,S=0,P=0,c13,n15,pol) {
+get_mz_cn <- function(C,N=0,H,O,S=0,P=0,f=0,c13,n15,pol) {
   # Get the mz ratios of a C and N isotope labeled compound
   # specify the number of c, n, h, o, s atoms
   # specify polarity for +1 charge or -1 charge
@@ -14,8 +14,9 @@ get_mz_cn <- function(C,N=0,H,O,S=0,P=0,c13,n15,pol) {
   m.s32 <- 31.972071
   m.p <- 1.00727646677 # ex mass of proton
   m.pho <- 30.973761
+  m.f <- 18.9984
   
-  b <- c(m.c12,m.c13,m.n14,m.n15,m.h,m.o16,m.s32,m.pho)
+  b <- c(m.c12,m.c13,m.n14,m.n15,m.h,m.o16,m.s32,m.pho,m.f)
   
   a <- matrix(
     c(
@@ -26,7 +27,8 @@ get_mz_cn <- function(C,N=0,H,O,S=0,P=0,c13,n15,pol) {
       rep(H,times=(C+1)*(N+1)),
       rep(O,times=(C+1)*(N+1)),
       rep(S,times=(C+1)*(N+1)),
-      rep(P,times=(C+1)*(N+1))
+      rep(P,times=(C+1)*(N+1)),
+      rep(f,times=(C+1)*(N+1))
     ),
     ncol = length(b)
   )
@@ -39,11 +41,11 @@ get_mz_cn <- function(C,N=0,H,O,S=0,P=0,c13,n15,pol) {
   
   colnames(mz) <- paste("[13]C",C:0,sep = "")
   
-  mz <- mz[(N-n15+1):nrow(mz),(C-c13+1):ncol(mz)]
+  mz <- mz[(N-n15+1):nrow(mz),(C-c13+1):ncol(mz),drop=FALSE]
   return(mz)
 }
 
-get_mz_ch <- function(C,N=0,H,O,S=0,P=0,c13,d,pol) {
+get_mz_ch <- function(C,N=0,H,O,S=0,P=0,f=0,c13,d,pol) {
   m.c12 <- 12.000000
   m.c13 <- 13.003355
   m.h <- 1.007825
@@ -53,8 +55,9 @@ get_mz_ch <- function(C,N=0,H,O,S=0,P=0,c13,d,pol) {
   m.s32 <- 31.972071
   m.p <- 1.00727646677 # ex mass of proton
   m.pho <- 30.973761
+  m.f <- 18.9984
   
-  b <- c(m.c12,m.c13,m.h,m.d,m.n14,m.o16,m.s32,m.pho)
+  b <- c(m.c12,m.c13,m.h,m.d,m.n14,m.o16,m.s32,m.pho,m.f)
   
   a <- matrix(
     c(
@@ -65,7 +68,8 @@ get_mz_ch <- function(C,N=0,H,O,S=0,P=0,c13,d,pol) {
       rep(N,times=(C+1)*(H+1)),
       rep(O,times=(C+1)*(H+1)),
       rep(S,times=(C+1)*(H+1)),
-      rep(P,times=(C+1)*(H+1))
+      rep(P,times=(C+1)*(H+1)),
+      rep(f,times=(C+1)*(H+1))
     ),
     ncol = length(b)
   )
@@ -78,11 +82,11 @@ get_mz_ch <- function(C,N=0,H,O,S=0,P=0,c13,d,pol) {
   
   colnames(mz) <- paste("[13]C",C:0,sep = "")
   
-  mz <- mz[(H-d+1):nrow(mz),(C-c13+1):ncol(mz)]
+  mz <- mz[(H-d+1):nrow(mz),(C-c13+1):ncol(mz),drop=FALSE]
   return(mz)
 }
 
-get_mz_nh <- function(C,N=0,H,O,S=0,P=0,n15,d,pol) {
+get_mz_nh <- function(C,N=0,H,O,S=0,P=0,f=0,n15,d,pol) {
   m.c12 <- 12.000000
   m.h <- 1.007825
   m.d <- 2.014102
@@ -92,8 +96,9 @@ get_mz_nh <- function(C,N=0,H,O,S=0,P=0,n15,d,pol) {
   m.s32 <- 31.972071
   m.p <- 1.00727646677 # ex mass of proton
   m.pho <- 30.973761
+  m.f <- 18.9984
   
-  b <- c(m.n14,m.n15,m.h,m.d,m.c12,m.o16,m.s32,m.pho)
+  b <- c(m.n14,m.n15,m.h,m.d,m.c12,m.o16,m.s32,m.pho,m.f)
   
   a <- matrix(
     c(
@@ -104,7 +109,8 @@ get_mz_nh <- function(C,N=0,H,O,S=0,P=0,n15,d,pol) {
       rep(C,times=(N+1)*(H+1)),
       rep(O,times=(N+1)*(H+1)),
       rep(S,times=(N+1)*(H+1)),
-      rep(P,times=(N+1)*(H+1))
+      rep(P,times=(N+1)*(H+1)),
+      rep(f,times=(N+1)*(H+1))
     ),
     ncol = length(b)
   )
@@ -117,7 +123,7 @@ get_mz_nh <- function(C,N=0,H,O,S=0,P=0,n15,d,pol) {
   
   colnames(mz) <- paste("[15]N",N:0,sep = "")
   
-  mz <- mz[(H-d+1):nrow(mz),(N-n15+1):ncol(mz)]
+  mz <- mz[(H-d+1):nrow(mz),(N-n15+1):ncol(mz),drop=FALSE]
   return(mz)
 }
 
@@ -274,12 +280,13 @@ get_abundance <- function(data, ppm, rt_range, bg_range, mzs, multiplier, backgr
   
   if (numLab1 != 0) {
     out <- out %>%
-      mutate(lab1Abundance = sapply(seq_along(label), function(x) {
+      mutate(lab1Abundance = lapply(seq_along(label), function(x) {
         a <- out %>%
           select(colnames(out)[str_detect(colnames(out),"int")])
         b <- rep(numLab1:0,each = numLab2+1)
         return(a[,x]*b[x])
-      }) %>%
+      }) %>% 
+        data.frame() %>% 
         apply(.,MARGIN = 1,sum) %>%
         `/`(numLab1*total)
       ) %>%
@@ -289,12 +296,13 @@ get_abundance <- function(data, ppm, rt_range, bg_range, mzs, multiplier, backgr
   
   if (numLab2 != 0) {
     out <- out %>%
-      mutate(lab2Abundance = sapply(seq_along(label), function(x) {
+      mutate(lab2Abundance = lapply(seq_along(label), function(x) {
         a <- out %>%
           select(colnames(out)[str_detect(colnames(out),"int")])
         b <- rep(numLab2:0,times = numLab1+1)
         return(a[,x]*b[x])
       }) %>%
+        data.frame() %>% 
         apply(.,MARGIN = 1,sum) %>%
         `/`(numLab2*total)
       ) %>%
@@ -304,7 +312,7 @@ get_abundance <- function(data, ppm, rt_range, bg_range, mzs, multiplier, backgr
   
   if (numLab1 != 0 & numLab2 != 0) {
     out <- out %>%
-      mutate(allAbundance = sapply(seq_along(label), function(x) {
+      mutate(allAbundance = lapply(seq_along(label), function(x) {
         a <- out %>%
           select(colnames(out)[str_detect(colnames(out),"int")])
         b1 <- rep(numLab1:0,each = numLab2+1)
@@ -312,6 +320,7 @@ get_abundance <- function(data, ppm, rt_range, bg_range, mzs, multiplier, backgr
         b <- b1+b2
         return(a[,x]*b[x])
       }) %>%
+        data.frame() %>% 
         apply(.,MARGIN = 1,sum) %>%
         `/` ((numLab2+numLab1)*total)
       ) %>%
