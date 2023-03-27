@@ -17,7 +17,7 @@ options(warn = -1)
 # Define UI ----
 ui <- navbarPage(
 
-  title = HTML("v1.2.1"),
+  title = HTML("v1.2.3"),
   
   theme = bs_theme(version = 4, bootswatch = "flatly"),
   
@@ -49,7 +49,8 @@ ui <- navbarPage(
             column(6,numericInput("O","O",value = NULL,min=0,max=60,step=1))
           ),
           fluidRow(
-            column(6,numericInput("S","S",value = NULL,min=0,max=60,step=1))
+            column(6,numericInput("S","S",value = NULL,min=0,max=60,step=1)),
+            column(6,numericInput("P","P",value = NULL,min=0,max=60,step=1))
           ),
           uiOutput("formulaInput"),
           verbatimTextOutput("test"),
@@ -290,19 +291,19 @@ server <- function(input, output) {
   })
   
   mzs <- reactive({
-    req(input$C, input$N, input$H, input$O, input$S, input$label1, input$label2, pol(), data(),input$mode)
+    req(input$C, input$N, input$H, input$O, input$S, input$P, input$label1, input$label2, pol(), data(),input$mode)
     
     if (input$mode == "C-N Labeled") {
-    mzs <- get_mz_cn(C=input$C,N=input$N,H=input$H,O=input$O,S=input$S,c13=input$label1,n15=input$label2,pol=pol())
+    mzs <- get_mz_cn(C=input$C,N=input$N,H=input$H,O=input$O,S=input$S,P=input$P,c13=input$label1,n15=input$label2,pol=pol())
     } else if (input$mode == "C-H Labeled") {
-      mzs <- get_mz_ch(C=input$C,N=input$N,H=input$H,O=input$O,S=input$S,c13=input$label1,d=input$label2,pol=pol())
+      mzs <- get_mz_ch(C=input$C,N=input$N,H=input$H,O=input$O,S=input$S,P=input$P,c13=input$label1,d=input$label2,pol=pol())
     } else if (input$mode == "N-H Labeled") {
-      mzs <- get_mz_nh(C=input$C,N=input$N,H=input$H,O=input$O,S=input$S,n15=input$label1,d=input$label2,pol=pol())
+      mzs <- get_mz_nh(C=input$C,N=input$N,H=input$H,O=input$O,S=input$S,P=input$P,n15=input$label1,d=input$label2,pol=pol())
     }
 
     return(mzs)
     }) %>%
-    bindCache(input$C, input$N, input$H, input$O, input$S, input$label1, input$label2, pol())
+    bindCache(input$C, input$N, input$H, input$O, input$S, input$P, input$label1, input$label2, pol())
   
   output$mztable <- renderTable({
     req(mzs())
