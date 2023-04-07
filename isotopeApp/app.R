@@ -17,7 +17,7 @@ options(warn = -1)
 # Define UI ----
 ui <- navbarPage(
 
-  title = HTML("v1.2.3"),
+  title = HTML("v1.3.1"),
   
   theme = bs_theme(version = 4, bootswatch = "flatly"),
   
@@ -66,6 +66,8 @@ ui <- navbarPage(
           uiOutput("rt_control"),
           helpText("Use intensites greater than what percent of max intensity to compute average?"),
           numericInput("multiplier", label = NULL, value = 1, min = 0.1, max = 1, step = 0.1, width = "50%"),
+          helpText("Choose main peak mz"),
+          uiOutput("main_peak"),
           checkboxInput("background", label = "Background subtraction (beta)", value = TRUE)
         ),
         conditionalPanel(
@@ -304,21 +306,22 @@ server <- function(input, output) {
     return(mzs)
     }) %>%
     bindCache(input$C, input$N, input$H, input$O, input$S, input$P, input$label1, input$label2, pol())
-  
+
   output$mztable <- renderTable({
     req(mzs())
     mzs()
   }, rownames = TRUE, digits = 4, striped = TRUE, hover = TRUE, bordered = TRUE)
   
   output$plotOptions <- renderUI({
-    req(mzs(),dataNames())
+    req(mzs(),dataNames(),input$mainPeak)
     mzs_vec <- as.vector(as.matrix(mzs()))
     fluidRow(
-      column(3,selectInput("whichmz", label = "Choose mz value", choices = round(mzs_vec,4))),
-      column(3, selectInput("whichfile", label = "Choose file to plot", choices = c(dataNames(),"All"))),
+      column(3,selectInput("whichmz", label = "Choose mz value", choices = round(mzs_vec,4), selected = input$mainPeak)),
+      column(3, selectInput("whichfile", label = "Choose file to plot", choices = c(dataNames(),"All"),selected="All")),
       column(6, selectInput("whichrange", label = "Select for", choices = c("Peak", "Background")))
     )
-  })
+  }) %>% 
+    bindEvent(input$plotData)
   
   # Generate reactive rt and background controls
   rtRange <- reactive({
@@ -331,6 +334,14 @@ server <- function(input, output) {
     sliderInput("rt_select",label = NULL, min = rtRange()[1], max = rtRange()[2], value = rtRange(), step = 0.001, round = FALSE, ticks = FALSE, dragRange = TRUE, animate = FALSE)
   })
   
+  output$main_peak <- renderUI({
+    # Choose the main peak
+    req(mzs)
+    mzs_vec <- as.vector(as.matrix(mzs()))
+    selectInput("mainPeak",label = NULL, choices=round(mzs_vec,digits=4),multiple=F)
+  }) %>% 
+    bindCache(mzs())
+  
   output$bg_control <- renderUI({
     sliderInput("bg_select",label = NULL, min = rtRange()[1], max = rtRange()[2], value = rtRange(), step = 0.001, round = FALSE, ticks = FALSE, dragRange = TRUE, animate = FALSE)
   })
@@ -340,8 +351,8 @@ server <- function(input, output) {
   chr <- reactive({
     req(data(),input$ppm, input$whichmz)
     data() %>% filterMz(mz = get_ppm_range(x = as.numeric(input$whichmz), ppm = input$ppm)) %>% chromatogram(aggregationFun = "max", missing = 0)
-  }) %>%
-    bindCache(data(),input$ppm, input$whichmz)
+  }) %>% 
+    bindCache(data(),input$ppm,input$whichmz)
   
   output$chr <- renderPlot({
     req(chr(),input$whichfile, dataNames())
@@ -399,7 +410,8 @@ server <- function(input, output) {
                   bg_range = input$bg_select, 
                   mzs = mzs(), 
                   multiplier = input$multiplier, 
-                  background = input$background, 
+                  background = input$background,
+                  mainPeak = input$mainPeak,
                   unlabeled = unlabeled())
     
     temp <- bind_rows(temp,sapply(temp, rsd))
@@ -407,7 +419,7 @@ server <- function(input, output) {
     
     return(temp)
   }) %>%
-    bindCache(data(),input$ppm,input$rt_select,input$bg_select,mzs(),input$multiplier, input$background, unlabeled()) %>%
+    bindCache(data(),input$ppm,input$rt_select,input$bg_select,mzs(),input$multiplier, input$background, input$mainPeak, unlabeled()) %>%
     bindEvent(input$run)
   
   output$table <- renderTable({

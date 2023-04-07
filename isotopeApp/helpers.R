@@ -156,7 +156,7 @@ read_data <- function(fls, centroidData){
   return(data)
 }
 
-get_abundance <- function(data, ppm, rt_range, bg_range, mzs, multiplier, background, unlabeled) {
+get_abundance <- function(data, ppm, rt_range, bg_range, mzs, multiplier, background, unlabeled,mainPeak) {
   # Set up serial processing
   register(SerialParam())
   
@@ -187,6 +187,13 @@ get_abundance <- function(data, ppm, rt_range, bg_range, mzs, multiplier, backgr
         filterFile(f) %>%
         filterRt(rt = bg_range)
     }
+    
+    # Get acquisition numbers for main peak-----
+    data_peak_main <- data_peak %>% 
+      filterMz(mz = get_ppm_range(x=mzs_vec[which(round(mzs_vec,digits=4)==mainPeak)],ppm=ppm)) %>%
+      spectra
+    ints <- lapply(data_peak_main,function(x){x@intensity}) %>% sapply(sum)
+    acNum <- which(ints >= multiplier*max(ints))
 
     for (i in seq_along(mzs_vec)) {
       x <- mzs_vec[i]
@@ -200,12 +207,6 @@ get_abundance <- function(data, ppm, rt_range, bg_range, mzs, multiplier, backgr
         data_bg_mz <- data_bg %>%
           filterMz(mz = get_ppm_range(x = x,ppm = ppm)) %>%
           spectra
-      }
-      
-      # Get acquisition numbers
-      if (x == max(mzs_vec)) {
-        ints <- lapply(data_peak_mz,function(x){x@intensity}) %>% sapply(sum)
-        acNum <- which(ints >= multiplier*max(ints))
       }
       
       # Get mz intensity pairs

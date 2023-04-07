@@ -3,9 +3,12 @@ library(ggplot2)
 library(openxlsx)
 library(KEGGREST)
 library(stringr)
+library(pathview)
 
-. <- "mdv.csv"
-keggid <- read.csv(.)
+. <- "data/20230406/cas_numbers.xlsx"
+keggid <- read.xlsx(.)
+keggid <- keggid %>% 
+  mutate(KEGG=cpdidmap(CAS,"CAS Registry Number","KEGG"))
 
 p_mass <- 1.00727646677 # exact mass of a proton
 
