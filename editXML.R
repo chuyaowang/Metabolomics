@@ -4,13 +4,22 @@ library(dplyr)
 library(stringr)
 library(openxlsx)
 library(methods)
+library(readr)
+
+# Prepare compound list
+info <- read.xlsx("data/20230413/msmls-lot-230-13.xlsx",startRow=2)
+cpds <- read_csv("data/20230413/tca_sigma.csv",skip=1)
+
+idx <- match(str_to_upper(cpds$`Sample Name`),info$PRIMARY_NAME)
+cpds$`Sample Wt` <- rep("",nrow(cpds))
+cpds$`Sample ID` <- info[idx,] %>% select("MOLECULAR_FORMULA") %>% unlist %>% str_remove(.,"\\([:alpha:]+\\)") %>% str_trim(.,"both") 
+write_csv(cpds, "data/20230413/tca_sigma_addFormula.csv") # Add the first row back!
 
 # Read data files
-data <- xmlToDataFrame("data/20230413/AAplateA-C.xml")
-info <- read.xlsx("data/20230413/msmls-lot-230-13.xlsx",startRow=2)
+data <- xmlToDataFrame("data/20230413/sugar_individual.xml")
 
 # Add info by compound name
-idx <- match(data$Compound,info$PRIMARY_NAME)
+idx <- match(str_to_upper(data$Compound),info$PRIMARY_NAME)
 data$CasId <- info[idx,] %>% select(CAS.ID) %>% unlist
 data$HMDBId <- info[idx,] %>% select("HMDB/YMDB.ID") %>% unlist
 data$KEGGId <- info[idx,] %>% select("KEGG.ID_CSID") %>% unlist
@@ -33,4 +42,8 @@ row_data <- apply(data, 1, function(x) {
 xmlParent(row_data) <- array_node
 
 # save as xml file
-saveXML(newFile, file = "data/20230413/AAplateA-C_edit.xml")
+saveXML(newFile, file = "data/20230413/sugar_individual_edit.xml")
+
+# Now go to excel to finish editing
+# First copy xml map from original file
+# Then copy paste in the new info
