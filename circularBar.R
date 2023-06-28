@@ -8,7 +8,7 @@ library(ggrepel)
 data <- read_tsv("~/R Projects/isocordb/0227_neg2/isocordata0227_neg2.tsv")
 
 data <- data %>% 
-  filter(sample=="Sample_ 2") %>% 
+  filter(sample=="Sample_ 2") %>% # sample 2 is bacteria body
   filter(metabolite %in% c("3PG","F6P","PEP","Pyr","GlcN6P","R5P","Glc")) %>%
   group_by(metabolite) %>% 
   mutate(

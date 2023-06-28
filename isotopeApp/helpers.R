@@ -1,4 +1,7 @@
-get_mz_cn <- function(C,N=0,H,O,S=0,P=0,f=0,c13,n15,pol) {
+library(dplyr)
+library(gtools)
+
+get_mz_cn <- function(C,N=0,H,O,S=0,P=0,f=0,i=0,c13,n15,pol) {
   # Get the mz ratios of a C and N isotope labeled compound
   # specify the number of c, n, h, o, s atoms
   # specify polarity for +1 charge or -1 charge
@@ -15,8 +18,9 @@ get_mz_cn <- function(C,N=0,H,O,S=0,P=0,f=0,c13,n15,pol) {
   m.p <- 1.00727646677 # ex mass of proton
   m.pho <- 30.973761
   m.f <- 18.9984
+  m.i <- 126.904468
   
-  b <- c(m.c12,m.c13,m.n14,m.n15,m.h,m.o16,m.s32,m.pho,m.f)
+  b <- c(m.c12,m.c13,m.n14,m.n15,m.h,m.o16,m.s32,m.pho,m.f,m.i)
   
   a <- matrix(
     c(
@@ -28,7 +32,8 @@ get_mz_cn <- function(C,N=0,H,O,S=0,P=0,f=0,c13,n15,pol) {
       rep(O,times=(C+1)*(N+1)),
       rep(S,times=(C+1)*(N+1)),
       rep(P,times=(C+1)*(N+1)),
-      rep(f,times=(C+1)*(N+1))
+      rep(f,times=(C+1)*(N+1)),
+      rep(i,times=(C+1)*(N+1))
     ),
     ncol = length(b)
   )
@@ -45,7 +50,7 @@ get_mz_cn <- function(C,N=0,H,O,S=0,P=0,f=0,c13,n15,pol) {
   return(mz)
 }
 
-get_mz_ch <- function(C,N=0,H,O,S=0,P=0,f=0,c13,d,pol) {
+get_mz_ch <- function(C,N=0,H,O,S=0,P=0,f=0,i=0,c13,d,pol) {
   m.c12 <- 12.000000
   m.c13 <- 13.003355
   m.h <- 1.007825
@@ -56,8 +61,9 @@ get_mz_ch <- function(C,N=0,H,O,S=0,P=0,f=0,c13,d,pol) {
   m.p <- 1.00727646677 # ex mass of proton
   m.pho <- 30.973761
   m.f <- 18.9984
+  m.i <- 126.904468
   
-  b <- c(m.c12,m.c13,m.h,m.d,m.n14,m.o16,m.s32,m.pho,m.f)
+  b <- c(m.c12,m.c13,m.h,m.d,m.n14,m.o16,m.s32,m.pho,m.f,m.i)
   
   a <- matrix(
     c(
@@ -69,7 +75,8 @@ get_mz_ch <- function(C,N=0,H,O,S=0,P=0,f=0,c13,d,pol) {
       rep(O,times=(C+1)*(H+1)),
       rep(S,times=(C+1)*(H+1)),
       rep(P,times=(C+1)*(H+1)),
-      rep(f,times=(C+1)*(H+1))
+      rep(f,times=(C+1)*(H+1)),
+      rep(i,times=(C+1)*(H+1))
     ),
     ncol = length(b)
   )
@@ -86,7 +93,7 @@ get_mz_ch <- function(C,N=0,H,O,S=0,P=0,f=0,c13,d,pol) {
   return(mz)
 }
 
-get_mz_nh <- function(C,N=0,H,O,S=0,P=0,f=0,n15,d,pol) {
+get_mz_nh <- function(C,N=0,H,O,S=0,P=0,f=0,i=0,n15,d,pol) {
   m.c12 <- 12.000000
   m.h <- 1.007825
   m.d <- 2.014102
@@ -97,8 +104,9 @@ get_mz_nh <- function(C,N=0,H,O,S=0,P=0,f=0,n15,d,pol) {
   m.p <- 1.00727646677 # ex mass of proton
   m.pho <- 30.973761
   m.f <- 18.9984
+  m.i <- 126.904468
   
-  b <- c(m.n14,m.n15,m.h,m.d,m.c12,m.o16,m.s32,m.pho,m.f)
+  b <- c(m.n14,m.n15,m.h,m.d,m.c12,m.o16,m.s32,m.pho,m.f,m.i)
   
   a <- matrix(
     c(
@@ -110,6 +118,7 @@ get_mz_nh <- function(C,N=0,H,O,S=0,P=0,f=0,n15,d,pol) {
       rep(O,times=(N+1)*(H+1)),
       rep(S,times=(N+1)*(H+1)),
       rep(P,times=(N+1)*(H+1)),
+      rep(f,times=(N+1)*(H+1)),
       rep(f,times=(N+1)*(H+1))
     ),
     ncol = length(b)

@@ -52,6 +52,10 @@ ui <- navbarPage(
             column(6,numericInput("S","S",value = NULL,min=0,max=60,step=1)),
             column(6,numericInput("P","P",value = NULL,min=0,max=60,step=1))
           ),
+          fluidRow(
+            column(6,numericInput("f","F",value = NULL,min=0,max=60,step=1)),
+            column(6,numericInput("I","I",value = NULL,min=0,max=60,step=1))
+          ),
           uiOutput("formulaInput"),
           verbatimTextOutput("test"),
           helpText("Enter mass error in ppm"),
@@ -190,7 +194,7 @@ server <- function(input, output) {
   
   # Condition for showing plot button
   output$showPlot <- reactive({
-    req(input$C,input$H,input$N,input$O,input$label1,input$label2,data())
+    req(input$C,input$H,input$N,input$O,input$S,input$P,input$f,input$I,input$label1,input$label2,data())
     TRUE
   })
   outputOptions(output, "showPlot", suspendWhenHidden = FALSE)
@@ -293,19 +297,19 @@ server <- function(input, output) {
   })
   
   mzs <- reactive({
-    req(input$C, input$N, input$H, input$O, input$S, input$P, input$label1, input$label2, pol(), data(),input$mode)
+    req(input$C, input$N, input$H, input$O, input$S, input$P, input$f, input$I, input$label1, input$label2, pol(), data(),input$mode)
     
     if (input$mode == "C-N Labeled") {
-    mzs <- get_mz_cn(C=input$C,N=input$N,H=input$H,O=input$O,S=input$S,P=input$P,c13=input$label1,n15=input$label2,pol=pol())
+    mzs <- get_mz_cn(C=input$C,N=input$N,H=input$H,O=input$O,S=input$S,P=input$P,f=input$f, i=input$I, c13=input$label1,n15=input$label2,pol=pol())
     } else if (input$mode == "C-H Labeled") {
-      mzs <- get_mz_ch(C=input$C,N=input$N,H=input$H,O=input$O,S=input$S,P=input$P,c13=input$label1,d=input$label2,pol=pol())
+      mzs <- get_mz_ch(C=input$C,N=input$N,H=input$H,O=input$O,S=input$S,P=input$P,f=input$f, i=input$I,c13=input$label1,d=input$label2,pol=pol())
     } else if (input$mode == "N-H Labeled") {
-      mzs <- get_mz_nh(C=input$C,N=input$N,H=input$H,O=input$O,S=input$S,P=input$P,n15=input$label1,d=input$label2,pol=pol())
+      mzs <- get_mz_nh(C=input$C,N=input$N,H=input$H,O=input$O,S=input$S,P=input$P,f=input$f, i=input$I,n15=input$label1,d=input$label2,pol=pol())
     }
 
     return(mzs)
     }) %>%
-    bindCache(input$C, input$N, input$H, input$O, input$S, input$P, input$label1, input$label2, pol())
+    bindCache(input$C, input$N, input$H, input$O, input$S, input$P, input$f, input$I, input$label1, input$label2, pol())
 
   output$mztable <- renderTable({
     req(mzs())
