@@ -73,14 +73,15 @@ p4 <- ggplot(data_volt, aes(x=Volts,y=value,group=Compound,color=Compound)) +
         legend.key = element_rect(fill=NA,color=NA),
         legend.title = element_text(size = 4),
         legend.text = element_text(size = 4),
-        panel.grid.major = element_line(linewidth=0.1,color="grey"),
+        # panel.grid.major = element_line(linewidth=0.1,color="grey"),
         axis.line = element_line(linewidth = 0.1,color="black"),
         axis.text = element_text(size = 4),
         axis.text.y = element_text(margin=margin(r=1)),
-        axis.text.x = element_text(margin=margin(t=1)),
+        axis.text.x = element_text(margin=margin(t=2)),
         axis.title.x = element_text(size = 4, margin = margin(t=2)),
         axis.title.y = element_text(size = 4, angle = 90, margin = margin(r=2))) +
-  scale_y_continuous(breaks = sort(c(seq(0, max(data_volt$value), length.out=5), 1e6)),labels=scales::scientific_format(digits = 2),expand=c(0,0),limits=c(0,NA))
+  scale_y_continuous(breaks = sort(c(seq(0, max(data_volt$value), length.out=5), 1e6)),labels=scales::scientific_format(digits = 2),expand=c(0,0),limits=c(0,NA)) +
+  scale_x_discrete(expand=c(0,0))
 
 tiff(file = "~/Documents/work/paper/materials/figures/volt.tiff", width = 8.3, height = 9, units = "cm", res = 600)
 p4
@@ -118,14 +119,15 @@ p5 <- ggplot(data_sheath, aes(x=as.numeric(Pressure),y=value,group=Compound,colo
         legend.key = element_rect(fill=NA,color=NA),
         legend.title = element_text(size = 4),
         legend.text = element_text(size = 4),
-        panel.grid.major = element_line(linewidth=0.1,color="grey"),
+        # panel.grid.major = element_line(linewidth=0.1,color="grey"),
         axis.line = element_line(linewidth = 0.1,color="black"),
         axis.text = element_text(size = 4),
         axis.text.y = element_text(margin=margin(r=1)),
-        axis.text.x = element_text(margin=margin(t=1)),
+        axis.text.x = element_text(margin=margin(t=2)),
         axis.title.x = element_text(size = 4, margin = margin(t=2)),
         axis.title.y = element_text(size = 4, angle = 90, margin = margin(r=2))) +
-  scale_y_continuous(breaks = sort(c(seq(0, max(data_sheath$value), length.out=5), 1e6)),labels=scales::scientific_format(digits = 2),expand=c(0,0),limits=c(0,NA))
+  scale_y_continuous(breaks = sort(c(seq(0, max(data_sheath$value), length.out=5), 1e6)),labels=scales::scientific_format(digits = 2),expand=c(0,0),limits=c(0,NA)) +
+  scale_x_continuous(breaks=c(30,35,40,45),expand=c(0,0))
 
 ## Aux gas -----
 
@@ -159,19 +161,20 @@ p6 <- ggplot(data_aux, aes(x=factor(Pressure,levels=c("5","10","15")),y=value,gr
         legend.key = element_rect(fill=NA,color=NA),
         legend.title = element_text(size = 4),
         legend.text = element_text(size = 4),
-        panel.grid.major = element_line(linewidth=0.1,color="grey"),
+        # panel.grid.major = element_line(linewidth=0.1,color="grey"),
         axis.line = element_line(linewidth = 0.1,color="black"),
         axis.text = element_text(size = 4),
         axis.text.y = element_text(margin=margin(r=1)),
-        axis.text.x = element_text(margin=margin(t=1)),
+        axis.text.x = element_text(margin=margin(t=2)),
         axis.title.x = element_text(size = 4, margin = margin(t=2)),
         axis.title.y = element_text(size = 4, angle = 90, margin = margin(r=2))) +
-  scale_y_continuous(breaks = sort(c(seq(0, max(data_aux$value), length.out=5), 1e6)),labels=scales::scientific_format(digits = 2),expand=c(0,0),limits=c(0,NA))
+  scale_y_continuous(breaks = sort(c(seq(0, max(data_aux$value), length.out=5), 1e6)),labels=scales::scientific_format(digits = 2),expand=c(0,0),limits=c(0,NA)) +
+  scale_x_discrete(expand=c(0,0))
 
 ## Total -----
 
-p_t2 <- plot_grid(p5,p6,p4,nrow=1,labels="AUTO", label_fontfamily = "Times",label_size = 6, label_fontface = "bold")
-tiff(file = "~/Documents/work/paper/materials/figures/ms_opt.tiff", width = 17.1, height = 6, units = "cm", res = 600)
+p_t2 <- plot_grid(p4,p5,p6,ncol=1,labels="AUTO", label_fontfamily = "Times",label_size = 6, label_fontface = "bold")
+tiff(file = "~/Documents/work/paper/materials/figures/ms_opt.tiff", width = 8.3, height = 12, units = "cm", res = 600)
 p_t2
 dev.off()
 

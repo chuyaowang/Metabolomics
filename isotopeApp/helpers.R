@@ -342,6 +342,10 @@ get_abundance <- function(data, ppm, rt_range, bg_range, mzs, multiplier, backgr
 
 rsd <- function(x) {sd(x)/mean(x)} # relative standard deviation
 
+get_ppm_diff <- function(x,y) {
+  abs(x-y)/x*1e6
+}
+
 retrieve_ints <- function(out) {
   ints <- out %>% select(colnames(out)[str_detect(colnames(out),"int")|str_detect(colnames(out),'Abundance')])
   return(ints)
