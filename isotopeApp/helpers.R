@@ -350,3 +350,62 @@ retrieve_ints <- function(out) {
   ints <- out %>% select(colnames(out)[str_detect(colnames(out),"int")|str_detect(colnames(out),'Abundance')])
   return(ints)
 }
+
+getmode <- function(v) {
+  uniqv <- unique(v)
+  uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+filter_deviation <- function(x,rt_thresh = 5,area_thresh = 1e4) {
+  # Removes peaks with very different retention times and low peak areas
+  # x should be a dataframe containing the rt column
+  
+  # Apply the area threshold
+  low_areas <- x$area<area_thresh
+  x$area[low_areas] <- 0
+  x$rt[low_areas] <- 0
+  
+  # Check if the dataframe is empty now
+  if (sum(x$area)==0) {
+    return(x)
+  } else {
+    d <- dist(x$rt)
+    cl <- cutree(hclust(d),h=rt_thresh) # Returns cluster membership
+    
+    # Find the cluster with highest total peak area
+    x <- x %>% 
+      mutate(cl = cl)
+    main_cl <- x %>% 
+      group_by(cl) %>% 
+      summarize(total_area = sum(area)) %>% 
+      filter(total_area == max(total_area)) %>% 
+      select(cl) %>% 
+      unlist
+    
+    # Set all other peak areas to 0
+    idx <- which(x$cl != main_cl)
+    x$area[idx] <- 0
+    x$rt[idx] <- 0
+    
+    # Reduce each mass isotopologue's corresponding peaks to 1 peak
+    alt_mean <- function(v) {
+      # Computes mean for a vector containing 0s
+      # First removes 0s
+      v1 <- remove_zeros(v)
+      
+      # If empty after removing 0s, return 0
+      if (length(v1)==0) {
+        return(0)
+      } else {
+        # Else, return the mean of the vector without 0s
+        return(mean(v1))
+      }
+    }
+    x <- x %>% 
+      group_by(isotopologue) %>% 
+      summarize(area = alt_mean(area),
+                rt = alt_mean(rt))
+    
+    return(x)
+  }
+}

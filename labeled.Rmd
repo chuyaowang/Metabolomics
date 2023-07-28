@@ -30,6 +30,7 @@ library(ggplot2)
 library(hrbrthemes)
 library(gtools)
 library(readr)
+library(GDAtools)
 source("isotopeApp/helpers.R")
 ```
 
@@ -348,8 +349,8 @@ peaklist <- chromPeaks(xdata) %>% as.data.frame
 ## Read metabolites table
 
 ```{r}
-compounds <- read.xlsx("data/metabolites_neg.xlsx",sheet=1,startRow = 1)
-#compounds <- read.xlsx("data/metabolites_pos.xlsx",sheet=1,startRow = 1)
+# compounds <- read.xlsx("data/metabolites_neg.xlsx",sheet=1,startRow = 1)
+compounds <- read.xlsx("data/metabolites_pos.xlsx",sheet=1,startRow = 1)
 elements <- c("C","H","N","O","P","S")
 count <- matrix(nrow=length(compounds$Formula),ncol = length(elements)) %>% as.data.frame
 for (i in seq_along(elements)) {
@@ -364,7 +365,7 @@ for (i in seq_along(elements)) {
 }
 colnames(count) <- elements
 
-count <- mutate(count, ion_formula = paste("C",C,"H",H-1,"N",N,"O",O,"P",P,"S",S,sep="")) # change to H+1 for positive mode
+count <- mutate(count, ion_formula = paste("C",C,"H",H+1,"N",N,"O",O,"P",P,"S",S,sep="")) # change to H+1 for positive mode
 for (i in seq_along(count$ion_formula)) {
   vec <- str_extract_all(count$ion_formula[i],"\\D?\\d+") %>% unlist 
   vec[str_detect(vec,"^\\D?0$")] <- ""
@@ -372,6 +373,10 @@ for (i in seq_along(count$ion_formula)) {
   count$ion_formula[i] <- str_flatten(vec)
 }
 compounds <- bind_cols(compounds, count)
+```
+
+```{r}
+peaklist <- read.csv("data/20230721/peaklist.csv")
 ```
 
 ## Filter for mz values
@@ -385,38 +390,50 @@ mdv <- matrix(nrow = length(compounds$Name),ncol=length(unique(peaklist$sample))
 
 for (spl in unique(peaklist$sample)) {
   for (cpd_idx in seq_along(compounds$Name)) {
+    num_labeled <- 6 # change to max # of labeled carbon atoms
     row <- compounds[cpd_idx,]
+    if (row$C<num_labeled) {
+      num_labeled <- row$C
+    }
     mzs <- get_mz_ch(C=row$C,
                      N=row$N,
                      H=row$H,
                      S=row$S,
                      O=row$O,
                      P=row$P,
-                     c13=row$C,
+                     c13=num_labeled, 
                      d=0,
                      pol=1 ) %>% # -1 for neg mode
-      unlist
+      unlist %>% 
+      rev
     
-    areas <- c() # stores area for each mz value
-    for (mz_idx in seq_along(mzs)) {
+    extracted <- data.frame(area=c(),rt=c(),isotopologue=c()) # stores area for each mz value
+    for (mz_idx in seq_along(mzs)) { # going from M+0 to M+num_labeled
       temp <- peaklist %>%
         filter(sample == spl) %>% 
         filter(abs(mz-mzs[mz_idx])<0.001) %>% 
-        select(into) %>%
-        unlist
-      temp <- c(temp,0)
-      areas[mz_idx] <- max(temp,na.rm = TRUE)
+        select(into,rt) %>% 
+        mutate(label = mz_idx-1)
+      if (nrow(temp)==0) { # If no peak is found, add a dummy peak
+        temp[nrow(temp)+1,] <- c(0,0,mz_idx-1) # Add dummy peak
+      }
+      colnames(temp) <- c("area","rt","isotopologue")
+      extracted <- bind_rows(extracted,temp)
     }
     
-    if (sum(areas)==0) {
-      mdv[cpd_idx,spl] <- rep(0,times=compounds$C[cpd_idx]) %>% as.character() %>% str_flatten(.,collapse = " ")
+    if (sum(extracted$area)==0) { # If not found at all
+      mdv[cpd_idx,spl] <- rep(0,times=num_labeled) %>% as.character() %>% str_flatten(.,collapse = " ") # MDV is all 0s
     } else {
-      mdv[cpd_idx,spl] <- (areas/sum(areas)) %>% round(.,digits=4) %>% as.character() %>% str_flatten(.,collapse = " ") 
+    # Remove peaks with inconsistent rt from the rest of the peaks and low areas
+    extracted <- filter_deviation(extracted,rt_thresh = 5,area_thresh = 1e4)
+    areas <- extracted$area
+    
+    mdv[cpd_idx,spl] <- (areas/sum(areas)) %>% round(.,digits=4) %>% as.character() %>% str_flatten(.,collapse = " ") # MDV is calculated
       
-      isocor.sample <- rep(paste("Sample_",spl),times=length(areas))
+      isocor.sample <- rep(paste("Sample_",spl,sep=""),times=length(areas))
       isocor.metabolite <- rep(abbs[cpd_idx],times=length(areas))
       isocor.derivative <- rep(NA,times=length(areas))
-      isocor.isotopologue <- (length(areas)-1):0
+      isocor.isotopologue <- 0:(length(areas)-1)
       isocor.area <- areas
       isocor.resolution <- rep(120000,length(areas))
       
@@ -426,7 +443,7 @@ for (spl in unique(peaklist$sample)) {
     }
   }
 }
-colnames(mdv) <-  fileNames(xdata) %>% basename
+# colnames(mdv) <-  fileNames(xdata) %>% basename
 compounds <- bind_cols(compounds,mdv)
 
 colnames(isocor) <- c("sample","metabolite","derivative","isotopologue","area","resolution")
@@ -445,14 +462,19 @@ colnames(metdat)[1:2] <- c("name","formula")
 ## Save data
 
 ```{r}
+# For viewing results
 write_csv(compounds,"output/mdv0228_pos2.csv",na="")
+# For isocor
 write_tsv(isocor,"output/isocordata0228_pos2.tsv",na="")
+# For isocor database
 write_tsv(metdat,"output/Metabolites.dat",na="",quote = "none")
 ```
 
 ## Process result
 
 ```{r}
+# For INCA
+# Read isocor corrected result
 res <- read_tsv("D:/Files/SH/isocor/0228_pos2/isocordata0228_pos2_res.tsv")
 res <- res %>%
   filter(sample=="Sample_ 2") %>% 
@@ -466,6 +488,7 @@ for (i in 1:length(res)) {
   res_new <- bind_rows(res_new,add,res[[i]])
 }
 
+# Save file for import into INCA
 write_csv(res_new,"D:/Files/SH/isocor/0228_pos2/res_processed_pos2.csv",na="")
 ```
 

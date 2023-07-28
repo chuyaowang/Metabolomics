@@ -49,7 +49,7 @@ data$Compound <- factor(data$Compound, levels=c("Pyr","Glc","PEP","3PG","G6P/F6P
 p1 <- ggplot(data,aes(x=Time,y=Intensity,color=factor(Concentration))) + 
   facet_wrap(~Compound,ncol=1,scales = "free",strip.position = "left") +
   geom_line(linewidth=0.2) +
-  scale_color_viridis(name = "Concentration \n(%)",discrete = TRUE, alpha=1, begin=0.2, end=0.8, option="G") +
+  scale_color_viridis(name = "Concentration \n(%)",discrete = TRUE, alpha=1, begin=0, end=.9, option="turbo") +
   xlab("Retention Time (min)") +
   ylab("Intensity") +
   theme_void() +
