@@ -140,8 +140,8 @@ ui <- navbarPage(
 # Define server logic ----
 server <- function(input, output) {
   # Root folder
-  # roots <- c(data = 'sampledata/') # demo mode
-  roots <- c(data = '../data/') # change to your data folder
+  roots <- c(data = 'sampledata/') # demo mode
+  # roots <- c(data = '../data/') # change to your data folder
   # Connect to root folder
   shinyDirChoose(input, "datadir", roots = roots, allowDirCreate = F)
   
