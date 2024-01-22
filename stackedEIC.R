@@ -46,6 +46,8 @@ data <- lapply(seq_along(concs),function(i) {
 
 data$Compound <- factor(data$Compound, levels=c("Pyr","Glc","PEP","3PG","G6P/F6P","Lac"))
 
+data <- data %>% filter(Compound != "Lac")
+
 p1 <- ggplot(data,aes(x=Time,y=Intensity,color=factor(Concentration))) + 
   facet_wrap(~Compound,ncol=1,scales = "free",strip.position = "left") +
   geom_line(linewidth=0.2) +
@@ -79,7 +81,7 @@ tiff(file = "~/Documents/work/paper/materials/figures/ph.tiff", width = 8.3, hei
 p1
 dev.off()
 
-## salt -----
+# salt -----
 
 datadir <- "data/20230308/salt_data.xlsx"
 cpds <- c("Lac","Pyr","Glc","PEP","G6P/F6P","3PG")
@@ -102,10 +104,12 @@ data_salt <- lapply(seq_along(concs),function(i) {
 
 data_salt$Compound <- factor(data_salt$Compound, levels=c("Pyr","Glc","PEP","3PG","G6P/F6P","Lac"))
 
+data_salt <- data_salt %>% filter(Compound != "Lac")
+
 p2 <- ggplot(data_salt,aes(x=Time,y=Intensity,color=factor(Concentration, levels = c("10","25","20")))) + 
   facet_wrap(~Compound,ncol=1,scales = "free",strip.position = "left") +
   geom_line(linewidth=0.2) +
-  scale_color_viridis(name = "Concentration \n(mM)", breaks = c("10","20","25"), discrete = TRUE, alpha=1, begin=0.2, end=0.8, option="G") +
+  scale_color_viridis(name = "Concentration \n(mM)", breaks = c("10","20","25"), discrete = TRUE, alpha=1, begin=0, end=0.9, option="turbo") +
   xlab("Retention Time (min)") +
   ylab("Intensity") +
   theme_void() +
@@ -135,11 +139,11 @@ tiff(file = "~/Documents/work/paper/materials/figures/salt.tiff", width = 8.3, h
 p2
 dev.off()
 
-## Column -----
+# Column -----
 
-datadir <- "data/20230308/column_data.xlsx"
+datadir <- "data/20230308/column_data_beh.xlsx"
 cpds <- c("Lac","Pyr","Glc","PEP","G6P/F6P","3PG")
-columns <- c("BEH Amide","C18")
+columns <- c("BEH Amide","ZIC pHILIC","Accucore HILIC")
 
 data_column <- lapply(seq_along(columns),function(i) {
   
@@ -158,17 +162,19 @@ data_column <- lapply(seq_along(columns),function(i) {
 
 data_column$Compound <- factor(data_column$Compound, levels=c("Pyr","Glc","PEP","3PG","G6P/F6P","Lac"))
 
-p3 <- ggplot(data_column,aes(x=Time,y=Intensity,color=factor(Column, levels = c("C18", "BEH Amide")))) + 
+data_column <- data_column %>% dplyr::filter(Compound != "Lac")
+
+p3 <- ggplot(data_column,aes(x=Time,y=Intensity,color=factor(Column, levels = c("Accucore HILIC","ZIC pHILIC","BEH Amide")))) + 
   facet_wrap(~Compound,ncol=1,scales = "free",strip.position = "left") +
   geom_line(linewidth=0.2) +
-  scale_color_viridis(name = "Column", labels = c("C18","BEH\nAmide"), discrete = TRUE, alpha=1, begin=0.2, end=0.8, option="G") +
+  scale_color_viridis(name = "Column", labels = c("Accucore\nHILIC","ZIC\npHILIC","BEH\nAmide"), discrete = TRUE, alpha=1, begin=0, end=0.9, option="turbo") +
   xlab("Retention Time (min)") +
   ylab("Intensity") +
   theme_void() +
   theme(strip.placement = "outside",
         text = element_text(size = 6,family="Times"),
         strip.text = element_text(size = 4),
-        plot.margin = margin(t=4,b=1,l=5),
+        plot.margin = margin(t=4,b=1,l=5,r=5),
         legend.position = "right",
         legend.justification = "top",
         legend.background = element_rect(fill = "white",color=NA),
@@ -191,10 +197,11 @@ tiff(file = "~/Documents/work/paper/materials/figures/column.tiff", width = 8.3,
 p3
 dev.off()
 
-## Total -----
+# Total -----
 
-p_t1 <- plot_grid(p3,p2,p1,labels = c("A","B","C"),label_fontfamily = "Times",label_size = 6, label_fontface = "bold",nrow = 1)
+p_t1 <- plot_grid(p3,p1,p2,labels = c("A","B","C"),label_fontfamily = "Times",label_size = 6, label_fontface = "bold",nrow = 1)
 
 tiff(file = "~/Documents/work/paper/materials/figures/lc_opt.tiff", width = 17.1, height = 6, units = "cm", res = 600)
+pdf(file = "~/Documents/work/paper/materials/figures/lc_opt.pdf",width=17.1/2.54,height=6/2.54)
 p_t1
 dev.off()

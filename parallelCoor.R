@@ -175,6 +175,7 @@ p6 <- ggplot(data_aux, aes(x=factor(Pressure,levels=c("5","10","15")),y=value,gr
 
 p_t2 <- plot_grid(p4,p5,p6,ncol=1,labels="AUTO", label_fontfamily = "Times",label_size = 6, label_fontface = "bold")
 tiff(file = "~/Documents/work/paper/materials/figures/ms_opt.tiff", width = 8.3, height = 12, units = "cm", res = 600)
+pdf(file = "~/Documents/work/paper/materials/figures/ms_opt.pdf",width=8.3/2.54,height=12/2.54)
 p_t2
 dev.off()
 

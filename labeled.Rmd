@@ -452,11 +452,11 @@ colnames(isocor) <- c("sample","metabolite","derivative","isotopologue","area","
 ## Make metabolite.dat
 
 ```{r}
-metdat <- compounds %>% 
+metdat_pos <- compounds %>% 
   select(Abbreviation, ion_formula) %>% 
   mutate(charge=rep(1,length(Abbreviation))) %>% 
   mutate(inchi=rep(NA,length(Abbreviation)))
-colnames(metdat)[1:2] <- c("name","formula")
+colnames(metdat_pos)[1:2] <- c("name","formula")
 ```
 
 ## Save data
@@ -467,7 +467,7 @@ write_csv(compounds,"output/mdv0228_pos2.csv",na="")
 # For isocor
 write_tsv(isocor,"output/isocordata0228_pos2.tsv",na="")
 # For isocor database
-write_tsv(metdat,"output/Metabolites.dat",na="",quote = "none")
+write_tsv(metdat_pos,"~/isocordb/MS_Metabolites_pos.dat",na="",quote = "none")
 ```
 
 ## Process result

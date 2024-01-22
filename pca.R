@@ -4,19 +4,14 @@ rm(list = ls())
 library(readr)
 library(dplyr)
 
-filename <- ".\\data\\sample.csv"
-sampledata <- read.csv(filename,
-                       header=TRUE)
-
-# Optional removing of the first outlier sample
-sampledata <- sampledata[2:6,]
+data("iris")
 
 # Get names and group name for convenience
-samplename <- sampledata$Sample.Name
-samplegroup <- sampledata$Group
+samplename <- seq_along(iris$Species)
+samplegroup <- iris$Species
 
 # Get only the numerical part
-sampleprocessed <- sampledata[,3:length(sampledata)]
+sampleprocessed <- iris[,1:ncol(iris)-1]
 
 # Optional horizontal normalization
 sampleprocessed <- apply(sampleprocessed,1,function(x) {
@@ -104,7 +99,7 @@ ggbiplot(pca,
          groups = samplegroup, 
          ellipse = TRUE, 
          circle = TRUE, 
-         var.axes = F,
+         var.axes = T,
          varname.size = 1.5) +
   scale_color_discrete(name = '') +
   theme(legend.direction = 'horizontal', legend.position = 'top') +
