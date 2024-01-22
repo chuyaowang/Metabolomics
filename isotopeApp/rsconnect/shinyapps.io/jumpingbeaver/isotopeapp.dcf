@@ -1,0 +1,10 @@
+name: isotopeapp
+title:
+username: jumpingbeaver
+account: jumpingbeaver
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 10992065
+bundleId: 8171483
+url: https://jumpingbeaver.shinyapps.io/isotopeapp/
+version: 1

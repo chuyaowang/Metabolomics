@@ -17,9 +17,13 @@ options(warn = -1)
 # Define UI ----
 ui <- navbarPage(
 
-  title = HTML("v1.3.1"),
+  title = div(img(src="logo.png",height=46,width=46),align="left"),
   
   theme = bs_theme(version = 4, bootswatch = "flatly"),
+  
+  windowTitle = "IsoCalc v1.3.3",
+  
+  tags$head(HTML("<link rel='icon' type='png' href='logo.png'>")),
   
   tabPanel(
     "Isotope Abundance Calculator",
@@ -98,6 +102,8 @@ ui <- navbarPage(
       
       # Main Panel ----
       mainPanel(
+        "Note: for the sample glycine data, the formula is C2H5NO2 containing 2 [13]Cs and 1 [15]N, fill in 0s for the rest of elements. The data is measured in positive mode. The 79.041 peak should be selected as the main peak (peak with the highest response)",
+        hr(),
         "Files to be processed:",
         br(),
         htmlOutput("filelist"),
@@ -134,10 +140,10 @@ ui <- navbarPage(
 # Define server logic ----
 server <- function(input, output) {
   # Root folder
-  roots <- c(data = '../data')
-  
+  # roots <- c(data = 'sampledata/') # demo mode
+  roots <- c(data = '../data/') # change to your data folder
   # Connect to root folder
-  shinyDirChoose(input, "datadir", roots = roots, allowDirCreate = TRUE)
+  shinyDirChoose(input, "datadir", roots = roots, allowDirCreate = F)
   
   # Make reactive file list
   files <- reactive({
@@ -201,6 +207,8 @@ server <- function(input, output) {
   
   # Read reactive data item
   data <- reactive({
+    req(files(),input$centroid)
+    
     read_data(fls = files(),centroidData = input$centroid)
   }) %>%
     bindCache(files(), input$centroid) %>%
